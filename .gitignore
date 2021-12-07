@@ -1,0 +1,13 @@
+.venv*
+.vscode*
+test*
+*.mp4
+*.part
+**/__pycache__
+config.py
+*.log
+cookies.txt
+*.db
+*.egg-info
+*log.0
+*.profile
