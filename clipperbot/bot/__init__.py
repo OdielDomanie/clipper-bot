@@ -99,9 +99,13 @@ class ClipBot(commands.Bot):
         if self.first_on_ready:
             for txt_chn_id, chn_url in self.channel_mapping.items():
                 txt_chn = self.get_channel(txt_chn_id)
+                if txt_chn is None:
+                    continue
+
                 listen_task = asyncio.create_task(
                     streams.listen(self, txt_chn, chn_url))
                 self.listens[txt_chn] = listen_task
+
                 await asyncio.sleep(5)  # to avoid stacking the threads
 
             asyncio.create_task(streams.periodic_cleaning(DOWNLOAD_DIR,
