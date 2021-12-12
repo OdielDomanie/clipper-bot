@@ -10,7 +10,7 @@ from starlette.middleware import Middleware
 from starlette.middleware.base import BaseHTTPMiddleware
 import uvicorn
 import uvicorn.config
-from .rangedstaticfiles import Mp4_Directory
+from .rangedstatic import Ranged_Static_Directory
 
 from .. import CLIP_DIR, IP_ADDRESS, PORT, UVICORN_LOG_FILE, UVICORN_LOG_LVL, DATABASE
 
@@ -78,7 +78,7 @@ middleware = [
 
 routes = [
     Route("/favicon.ico", endpoint=favicon_response),
-    Mount("/clips", app=Mp4_Directory(directory=CLIP_DIR))
+    Mount("/clips", app=Ranged_Static_Directory(directory=CLIP_DIR))
 ]
 
 app = Starlette(routes=routes, middleware = middleware)
