@@ -1,25 +1,25 @@
 import os
 from pathlib import Path
 import urllib.parse
-from typing import IO, Generator
 from starlette.responses import StreamingResponse, Response, PlainTextResponse
 from starlette.requests import Request
 
 
-# Modified from https://gist.github.com/tombulled/712fd8e19ed0618c5f9f7d5f5f543782
 """
-Stream a file, in this case an mp4 video, supporting range-requests using starlette
-Reference: https://stackoverflow.com/questions/33208849/python-django-streaming-video-mp4-file-using-httpresponse
+Stream a file supporting range-requests using starlette
+Inspired from:
+https://gist.github.com/tombulled/712fd8e19ed0618c5f9f7d5f5f543782,
+https://stackoverflow.com/questions/33208849/python-django-streaming-video-mp4-file-using-httpresponse
 """
 
 
-def ranged \
-        (
-            file: IO[bytes],
+def ranged(
+            file,
             start: int = 0,
             end: int = None,
-            block_size: int = 8192 * 512,  # maybe increase this to solve high cpu usage issue?
-        ) -> Generator[bytes, None, None]:
+            block_size: int = 8192 * 512,
+        ):
+
     consumed = 0
 
     file.seek(start)
@@ -39,11 +39,14 @@ def ranged \
 
         yield data
 
-    if hasattr(file, 'close'):
+    try:
         file.close()
+    except AttributeError:
+        pass
 
-def Mp4_Directory(directory):
-    async def Mp4_directory_app(scope, receive, send) -> StreamingResponse:
+
+def Ranged_Static_Directory(directory):
+    async def rs_directory_app(scope, receive, send) -> StreamingResponse:
         assert scope['type'] == 'http'
         path:str = scope["path"]
 
@@ -52,7 +55,7 @@ def Mp4_Directory(directory):
         elif path.endswith(".webm"):
             media_type = 'video/mp4'
         elif path.endswith(".m4a"):
-            media_type = 'audio/mp4'  # mime types combined with discord embedable extensions give me cancer
+            media_type = 'audio/mp4'
         elif path.endswith(".ogg"):
             media_type = 'audio/ogg'
         else:
@@ -101,15 +104,13 @@ def Mp4_Directory(directory):
 
             headers['Content-Range'] = f'bytes {range_start}-{range_end}/{file_size}'
 
-        response = StreamingResponse \
-        (
+        response = StreamingResponse(
             file,
             media_type = media_type,
             status_code = status_code,
         )
 
-        response.headers.update \
-        ({
+        response.headers.update({
             'Accept-Ranges': 'bytes',
             'Content-Length': str(content_length),
             **headers,
@@ -117,4 +118,4 @@ def Mp4_Directory(directory):
 
         await response(scope, receive, send)
     
-    return Mp4_directory_app
+    return rs_directory_app
