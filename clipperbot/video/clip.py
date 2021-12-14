@@ -13,7 +13,7 @@ logger = logging.getLogger("clipping.clip")
 
 async def clip(stream_filepath:str, title:str,
         from_time:dt.timedelta, duration:dt.timedelta,
-        stream_start_time:dt.datetime, audio_only=False,
+        stream_start_time:dt.datetime, audio_only=False, relative_start=None,
         clip_dir = CLIP_DIR, ffmpeg=FFMPEG):
     """Creates a clip file from `stream_filepath`.
     Returns path of the clip file.
@@ -32,7 +32,7 @@ async def clip(stream_filepath:str, title:str,
         f"{title} {time_stamp}_{duration.total_seconds():.2f}{extension}")
     
     await cut_video(stream_filepath, from_time, duration,
-        clip_filepath, audio_only, ffmpeg)
+        clip_filepath, audio_only, ffmpeg, relative_start=relative_start)
     
     clean_space(CLIP_DIR, MAX_CLIP_STORAGE)
 
@@ -41,11 +41,11 @@ async def clip(stream_filepath:str, title:str,
 
 async def cut_video(stream_filepath:str,
         from_time:dt.timedelta, duration:dt.timedelta,
-        output_path:str, audio_only=False, ffmpeg=FFMPEG):
+        output_path:str, audio_only=False, ffmpeg=FFMPEG, relative_start=None):
     """ Cuts a video file.
     """
     logger.debug(f"Creating clip file from {stream_filepath} to {output_path}.\n"
-        f"From: {str(from_time)} for {str(duration)}")
+        f"From: {str(from_time)} {'('+str(relative_start)+') ' if relative_start is not None else ''}for {str(duration)}")
 
     # Check if the stream file has .part appended.
     stream_filepath += ".part"
@@ -61,13 +61,19 @@ async def cut_video(stream_filepath:str,
         # and after for accuracy
         # -t after -i only seems to cause errors when t is longer than the vid
         # duration
+
+        if relative_start is None:
+            start_arg = f"-ss {from_time.total_seconds():.3f}"
+        else:
+            # This probably feels better for the user.
+            delayed_start = relative_start.total_seconds() - 1
+            start_arg = f"-sseof {delayed_start:.3f}"
+
         command = (f"{ffmpeg} -y -hide_banner\
-            -ss {from_time.total_seconds():.3f}\
+            {start_arg}\
             -t {duration.total_seconds():.3f}\
-            -i {shlex.quote(stream_filepath)} "
-            # f"-ss {from_time.total_seconds():.3f} "
-            # -t {duration.total_seconds()}\
-            f"-acodec copy\
+            -i {shlex.quote(stream_filepath)}\
+            -acodec copy\
             {'-vn' if audio_only else '-vcodec copy'}\
             -movflags faststart\
             {shlex.quote(output_path)}"

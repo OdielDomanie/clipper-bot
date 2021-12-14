@@ -62,7 +62,9 @@ f"""Clip relative to the current time. Use `a` for audio only.""")
             # No stream has been run in this channel
             return
     
-        from_time, duration = self._calc_time(ctx, relative_start, duration)
+        from_time, duration, relative_start = self._calc_time(
+                                        ctx, relative_start, duration
+        )
 
         if duration > self.bot.max_clip_duration:
             # Duration more than allowed.
@@ -71,7 +73,9 @@ f"""Clip relative to the current time. Use `a` for audio only.""")
 
         audio_only = ctx.invoked_with in ["audio", "a"]
 
-        await self._create_n_send_clip(ctx, from_time, duration, audio_only)
+        await self._create_n_send_clip(
+            ctx, from_time, duration, audio_only, relative_start=relative_start
+        )
 
 
     clip_s_help = (
@@ -118,7 +122,7 @@ Also consider deleting the original clip if you don't need it.""")
     @commands.command(aliases=["adj"])
     async def adjust(self, ctx, 
             start_adjust:to_timedelta,
-            duration_adjust:str=0):
+            duration_adjust:str="0"):
         if ctx.message.reference is None:
             await ctx.reply("You need to reply to the clip to adjust.")
             return
@@ -131,10 +135,7 @@ Also consider deleting the original clip if you don't need it.""")
             return
 
         from_time = og_clip.from_time + start_adjust
-        if duration_adjust == 0:
-            duration = og_clip.duration
-        else:
-            duration = og_clip.duration + to_timedelta(duration_adjust)
+        duration = og_clip.duration + to_timedelta(duration_adjust)
 
         await self._create_n_send_clip(ctx, from_time, duration, audio_only=og_clip.audio_only)
     
@@ -152,10 +153,10 @@ Also consider deleting the original clip if you don't need it.""")
         stream = self.bot.streams[ctx.channel]
         from_time = dt.datetime.now() - relative_start - stream.start_time
 
-        return from_time, duration
+        return from_time, duration, -relative_start
 
     async def _create_n_send_clip(self, ctx, from_time:dt.timedelta, 
-            duration:dt.timedelta, audio_only=False):
+            duration:dt.timedelta, audio_only=False, relative_start=None):
         try:
             stream = self.bot.streams[ctx.channel]
             clip_fpath = await clip.clip(
@@ -164,7 +165,8 @@ Also consider deleting the original clip if you don't need it.""")
                 from_time,
                 duration,
                 stream.start_time,
-                audio_only=audio_only
+                audio_only=audio_only,
+                relative_start=relative_start
             )
         except KeyError:
             await ctx.reply("No captured stream in"
@@ -174,11 +176,11 @@ Also consider deleting the original clip if you don't need it.""")
             await ctx.reply("Can no longer clip the stream.")
         else:
            await self._send_clip(ctx, from_time, duration, clip_fpath,
-                stream, audio_only)
+                stream, audio_only, relative_start=relative_start)
 
     
     async def _send_clip(self, ctx, from_time, duration, clip_fpath,
-            stream:StreamDownload, audio_only):
+            stream:StreamDownload, audio_only, relative_start=None):
         clip_size = clip_size = os.path.getsize(clip_fpath)
 
         if clip_size < 10_000:  # less than 10 KB is probably corrupt
@@ -191,6 +193,11 @@ Also consider deleting the original clip if you don't need it.""")
             self.bot.logger.debug(f"Trying shortenening clip {clip_fpath}"
                 f" ({clip_size//(1024)}KB) sat"
                 f" {(ctx.guild.name, ctx.channel.name)}")
+            
+            if relative_start is not None:
+                new_relative_start = relative_start + dt.timedelta(seconds=1)
+            else:
+                new_relative_start = None
 
             short_clip_fpath = await clip.clip(
                 stream.filepath,
@@ -198,7 +205,8 @@ Also consider deleting the original clip if you don't need it.""")
                 from_time + dt.timedelta(seconds=1),
                 duration - dt.timedelta(seconds=1),
                 stream.start_time,
-                audio_only=audio_only
+                audio_only=audio_only,
+                relative_start=new_relative_start
             )
             short_clip_size = os.path.getsize(short_clip_fpath) 
             if (short_clip_size <= ctx.guild.filesize_limit):
@@ -207,24 +215,27 @@ Also consider deleting the original clip if you don't need it.""")
                 clip_size = short_clip_size
                 from_time += dt.timedelta(seconds=1)
                 duration -= dt.timedelta(seconds=1)
+                relative_start = new_relative_start
 
             
         if clip_size <= ctx.guild.filesize_limit:
             msg = await self._send_as_attachm(ctx, clip_fpath, clip_size,
-                from_time, duration)
+                from_time, duration, relative_start=relative_start)
         else:
             msg = await self._send_as_link(ctx, clip_fpath, clip_size,
-                from_time, duration)
+                from_time, duration, relative_start=relative_start)
         if msg is not None:
             self.bot.logger.info(
                 f"Posted clip (duration {duration}) ({clip_size//(1024)}KB) at"
                 f" {(ctx.guild.name, ctx.channel.name)}")
 
             self.sent_clips.append(Clip(msg, clip_fpath, stream,
-                from_time, duration, audio_only))
+                from_time, duration, audio_only, relative_start=relative_start))
 
 
-    async def _send_as_attachm(self, ctx, clip_fpath, clip_size, from_time, duration):
+    async def _send_as_attachm(
+        self, ctx, clip_fpath, clip_size, from_time, duration, relative_start=None
+    ):
         logger = self.bot.logger
         reply = self.bot.get_cog("DeletableMessages").reply
         try: 
@@ -242,11 +253,15 @@ Also consider deleting the original clip if you don't need it.""")
             # Request entity too large
             if httpexception.code == 40005 or httpexception.status == 413:
                 logger.warning(f"Discord gave {str(httpexception)}. Posting as big clip.")
-                return await self._send_as_link(ctx, clip_fpath, clip_size, from_time, duration)
+                return await self._send_as_link(
+                    ctx, clip_fpath, clip_size, from_time, duration, relative_start=relative_start
+                )
             else:
                 raise httpexception
     
-    async def _send_as_link(self, ctx, clip_fpath, clip_size, from_time, duration):
+    async def _send_as_link(
+        self, ctx, clip_fpath, clip_size, from_time, duration, relative_start=None
+    ):
         logger = self.bot.logger
         reply = self.bot.get_cog("DeletableMessages").reply
         if self.bot.get_link_perm(ctx.guild.id):
@@ -287,6 +302,7 @@ class Clip:
     from_time : dt.timedelta
     duration : dt.timedelta
     audio_only : bool
+    relative_start : dt.timedelta = None
 
     def __eq__(self, b) -> bool:
         if isinstance(b, Clip):
