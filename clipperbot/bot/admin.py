@@ -139,7 +139,7 @@ True by default."
             listen_task.cancel()
             try:
                 os.remove(self.bot.streams[txtchn.id].filepath)
-            except FileNotFoundError:
+            except (FileNotFoundError, KeyError):
                 pass
             del self.bot.listens[txtchn]
         
