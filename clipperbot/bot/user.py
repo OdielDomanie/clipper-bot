@@ -136,8 +136,17 @@ Also consider deleting the original clip if you don't need it.""")
 
         from_time = og_clip.from_time + start_adjust
         duration = og_clip.duration + to_timedelta(duration_adjust)
+        relative_start = None
 
-        await self._create_n_send_clip(ctx, from_time, duration, audio_only=og_clip.audio_only)
+        if og_clip.relative_start is not None:
+            if og_clip.stream.done:
+                relative_start = og_clip.relative_start - start_adjust
+            else:
+                relative_start = (og_clip.relative_start + start_adjust
+                    + (dt.datetime.now() - og_clip.stream.start_time))
+
+        await self._create_n_send_clip(ctx, from_time, duration,
+            audio_only=og_clip.audio_only, relative_start=relative_start)
     
     def _calc_time(self, ctx, relative_start, duration):
         if relative_start == "...":
@@ -206,7 +215,7 @@ Also consider deleting the original clip if you don't need it.""")
                 duration - dt.timedelta(seconds=1),
                 stream.start_time,
                 audio_only=audio_only,
-                relative_start=new_relative_start
+                relative_start=new_relative_start 
             )
             short_clip_size = os.path.getsize(short_clip_fpath) 
             if (short_clip_size <= ctx.guild.filesize_limit):
