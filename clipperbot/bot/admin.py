@@ -68,8 +68,12 @@ True by default."
                 self._unregister(ctx.channel)
             except KeyError:
                 pass
-
-            await self._register(ctx, channel_url)
+            
+            try:
+                await self._register(ctx, channel_url)
+            except ValueError:
+                await ctx.reply("The url must be the url to the channel.")
+                return
 
             await ctx.send(f"Registered <{self.bot.channel_mapping[ctx.channel.id]}> on this channel.")
     
