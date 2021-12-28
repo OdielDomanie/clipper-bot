@@ -2,7 +2,7 @@ import asyncio
 import logging
 import discord
 from discord.ext import commands
-from .utils import PersistentDict
+from ..utils import PersistentDict
 from ..video.download import StreamDownload
 from . import streams
 from .user import Clipping
