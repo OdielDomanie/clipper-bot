@@ -225,11 +225,11 @@ async def sanitize_chnurl(chn_url:str):
     Can raise `ValueError` if url not supported.
     Can raise `RateLimited`.
     """
-    # Does not fully check url validity.
+    # May not be fully checking url validity.
     # TODO
     # !!This is may be security vulnerability!! Check the url properly! 
-    if "." not in chn_url:
-        chn_url = "https://www.youtube.com/channel/ + chn_url"
+    if "." not in chn_url and "/" not in chn_url and chn_url != "":
+        chn_url = "https://www.youtube.com/channel/" + chn_url
     if not chn_url.startswith("https://"):
         chn_url = "https://" + chn_url
     if "youtu.be" in chn_url:
