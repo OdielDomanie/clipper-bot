@@ -115,11 +115,11 @@ Assume the stream started at the hour mark.""")
         await self._create_n_send_clip(ctx, from_time, duration, audio_only)
 
     adj_help = (
-f"""Reply to a clip to post it again with modified start point and duration.
+"""Reply to a clip to post it again with modified start point and duration.
 Also consider deleting the original clip if you don't need it.""")
     clip_sh_brief = "Reply to a clip to adjust it."
 
-    @commands.command(aliases=["adj"])
+    @commands.command(aliases=["adj"], help=adj_help, brief=clip_sh_brief)
     async def adjust(self, ctx, 
             start_adjust:to_timedelta,
             duration_adjust:str="0"):
