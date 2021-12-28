@@ -183,6 +183,9 @@ Also consider deleting the original clip if you don't need it.""")
         except FileNotFoundError:
             self.bot.logger.error(f"Stream file deleted for {(ctx.guild.name, ctx.channel.name)}")
             await ctx.reply("Can no longer clip the stream.")
+        except Exception as e:  # ffmpeg returned non-zero
+            if e.args[0] == "Clip not created.":
+                await ctx.reply("Error with clip. Check times.")
         else:
            await self._send_clip(ctx, from_time, duration, clip_fpath,
                 stream, audio_only, relative_start=relative_start)
