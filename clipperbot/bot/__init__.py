@@ -8,6 +8,7 @@ from . import streams
 from .user import Clipping
 from .admin import Admin
 from .deletables import DeletableMessages
+from .help_strings import help_description
 
 from .. import DOWNLOAD_DIR, MAX_DOWNLOAD_STORAGE, DEF_CLIP_DURATION, MAX_DURATION
 
@@ -20,9 +21,8 @@ class ClipBot(commands.Bot):
         
         intents = discord.Intents(guilds=True, guild_messages=True,
             guild_reactions=True)
-        description = "Clipper bot."
         super().__init__(self._get_prefix, 
-            description=description, intents = intents, **options)
+            description=help_description, intents = intents, **options)
 
         self.def_clip_duration = def_clip_duration
         self.max_clip_duration = MAX_DURATION
@@ -56,6 +56,10 @@ class ClipBot(commands.Bot):
         self.add_cog(DeletableMessages(self, 1000))
         self.add_cog(Clipping(self))
         self.add_cog(Admin(self))
+
+        self.help_command = commands.DefaultHelpCommand(
+            no_category = 'Info'
+        )
         
     async def on_command_error(self, context, exception):
         if isinstance(exception, (commands.CommandInvokeError, commands.ConversionError)):
