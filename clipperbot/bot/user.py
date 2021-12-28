@@ -4,6 +4,7 @@ import collections
 import dataclasses
 import datetime as dt
 import os
+import os.path
 import typing
 import discord
 from discord.ext import commands
@@ -252,7 +253,8 @@ Also consider deleting the original clip if you don't need it.""")
         reply = self.bot.get_cog("DeletableMessages").reply
         try: 
             with open(clip_fpath, "rb") as file_clip:
-                msg = await reply(ctx, file=discord.File(file_clip), fpath=clip_fpath)
+                file_name = os.path.basename(clip_fpath)
+                msg = await reply(ctx, file=discord.File(file_clip, file_name), fpath=clip_fpath)
             try:
                 os.remove(clip_fpath)
             except FileNotFoundError:
