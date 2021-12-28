@@ -56,6 +56,10 @@ class ClipBot(commands.Bot):
         self.add_cog(DeletableMessages(self, 1000))
         self.add_cog(Clipping(self))
         self.add_cog(Admin(self))
+
+        self.help_command = commands.DefaultHelpCommand(
+            no_category = 'Info'
+        )
         
     async def on_command_error(self, context, exception):
         if isinstance(exception, (commands.CommandInvokeError, commands.ConversionError)):
