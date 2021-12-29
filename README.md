@@ -1,4 +1,4 @@
-Discord bot that clip youtube livestreams.
+Discord bot that clips youtube livestreams.
 
 Sample usage:
 ```
