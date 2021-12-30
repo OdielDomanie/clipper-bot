@@ -22,6 +22,4 @@ Prerequisites:
 * uvicorn
 * ffmpeg
 ---
-Test the bot at: https://discord.gg/zbwYB7jc
-
 Contact OdielDomanie at discord: Terlick#8575
