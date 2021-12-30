@@ -238,7 +238,7 @@ async def sanitize_chnurl(chn_url:str):
         chn_url = chn_url.split("?")[0].split("#")[0]  # remove url parameters
     if chn_url.startswith("https://www.youtube.com/c/"):  # custom url
         # channel url in the form of /channel/
-        chn_url = await _fetch_yt_chn_data(chn_url)["channel_url"]
+        chn_url = (await _fetch_yt_chn_data(chn_url))["channel_url"]
     
     if not chn_url.startswith("https://www.youtube.com/channel/"):
         raise ValueError("Only Youtube channels are implemented.")
