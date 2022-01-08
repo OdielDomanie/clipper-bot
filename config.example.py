@@ -30,6 +30,7 @@ TOKEN = ""
 # IP adress for the webserver.
 IP_ADDRESS = "0.0.0.0"
 PORT = 8080
+URL_PORT = 80  # Different from PORT in case of port forwarding
 
 LOG_FILE = "clipbot.log"
 LOG_LVL = logging.INFO

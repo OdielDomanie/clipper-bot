@@ -12,7 +12,7 @@ import uvicorn
 import uvicorn.config
 from .rangedstatic import Ranged_Static_Directory
 
-from .. import CLIP_DIR, IP_ADDRESS, PORT, UVICORN_LOG_FILE, UVICORN_LOG_LVL, DATABASE
+from .. import CLIP_DIR, IP_ADDRESS, PORT, UVICORN_LOG_FILE, UVICORN_LOG_LVL, DATABASE, URL_PORT
 
 
 con = sqlite3.connect(DATABASE)
@@ -49,10 +49,10 @@ def get_link(clip_fname:str):
     file_path = "/clips/" + clip_fname.split("/")[-1]
     alias = "/clips/clip_" + id_generator(6)
     insert_redirect(alias, urllib.parse.quote(file_path))
-    if PORT == 80:
+    if URL_PORT == 80:
         return f"http://{IP_ADDRESS}{urllib.parse.quote(alias)}"
     else:
-        return f"http://{IP_ADDRESS}:{PORT}{urllib.parse.quote(alias)}"
+        return f"http://{IP_ADDRESS}:{URL_PORT}{urllib.parse.quote(alias)}"
 
 
 def favicon_response(request):
