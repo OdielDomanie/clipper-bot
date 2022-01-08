@@ -15,7 +15,7 @@ __prefix !            | change prefix to '!' (the default prefix is always valid
 __allow_link false    | the bot will not post big files as ddl links in this server
 ```
 
-Prerequisites:
+Dependencies:
 * discord.py
 * youtube-dl
 * starlette
