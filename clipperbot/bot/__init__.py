@@ -89,7 +89,7 @@ class ClipBot(commands.Bot):
         self.link_perms[guild_id] = perm
     
     def get_link_perm(self, guild_id:int) -> str:
-        return self.link_perms.get(guild_id, "true")
+        return self.link_perms.get(guild_id, "false")
 
     async def on_ready(self):
         # This part is fragile

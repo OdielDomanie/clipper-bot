@@ -30,7 +30,7 @@ class Admin(commands.Cog):
 "If allowed, the bot can post clips that are too large to be uploaded"
 " directly as attachments as temporary links to a self hosted webserver"
 " instead.\
-True by default."
+False by default."
 )
     @commands.command(help = allow_link_help, brief = allow_link_brief)
     async def allow_link(self, ctx, allow:_allow_link_converter):
