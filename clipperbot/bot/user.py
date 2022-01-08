@@ -50,7 +50,8 @@ class Clipping(commands.Cog):
 
 
     clip_help =(
-f"""Clip relative to the current time. Use `a` for audio only.""")
+f"""Clip relative to the current time. Use `a` for audio only.
+If the clip file is too big, a direct download link is posted instead, if enabled for the server. The ddl is only temporary, so please don't link to it.""")
     clip_brief = "Clip!"
 
     @commands.group(aliases=["c", "audio", "a"], invoke_without_command=True,
