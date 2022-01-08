@@ -17,13 +17,6 @@ class Admin(commands.Cog):
         
     async def cog_check(self, ctx):
         return await utils.manserv_or_owner(ctx)
-    
-    def _allow_link_converter(self, allow):
-        allow = allow.lower()        
-        if allow not in self.bot.possible_link_perms:
-            raise commands.BadArgument
-        else:
-            return allow
 
     allow_link_brief = "Should the bot post big clips as links."
     allow_link_help = (
@@ -33,10 +26,17 @@ class Admin(commands.Cog):
 False by default."
 )
     @commands.command(help = allow_link_help, brief = allow_link_brief)
-    async def allow_link(self, ctx, allow:_allow_link_converter):
+    async def allow_link(self, ctx, allow:str):
+
+        allow = allow.lower() 
+        if allow not in self.bot.possible_link_perms:
+            raise commands.BadArgument
+
         self.bot.logger.info(f"Setting link perm on {ctx.guild.name}"
             f" to {allow}.")
         self.bot.link_perms[ctx.guild.id] = allow
+
+        await ctx.send(f"`Big clips posted as links: {allow}`")
     
     prefix_brief = "Change the channel prefix."
     @commands.command()

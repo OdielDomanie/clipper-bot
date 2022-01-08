@@ -20,7 +20,7 @@ class DeletableMessages(commands.Cog):
 
             self.logger.debug(f"Deleting message by {user}")
             await reaction.message.delete()
-            if fpaths[0]:
+            if fpaths is not None and fpaths[0]:
                 try:
                     os.remove(fpaths[0])
                     self.logger.info(f"Deleted {fpaths[0]}")
@@ -28,7 +28,7 @@ class DeletableMessages(commands.Cog):
                     self.logger.debug(f"Corresponding file {fpaths[0]}"
                         f" not found for deletion.")
     
-    async def reply(self, ctx, *args, fpath, **kwargs):
+    async def reply(self, ctx, *args, fpath=None, **kwargs):
         try:
             message = await ctx.reply(*args, **kwargs)
         except Exception as e:
