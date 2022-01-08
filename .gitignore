@@ -11,3 +11,5 @@ cookies.txt
 *.egg-info
 *log.0
 *.profile
+favicon.ico
+favicon.png

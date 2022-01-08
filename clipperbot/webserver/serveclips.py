@@ -56,6 +56,8 @@ def get_link(clip_fname:str):
 
 
 def favicon_response(request):
+    if os.path.isfile("favicon.ico"):
+        return FileResponse("favicon.ico")
     if os.path.isfile("favicon.png"):
         return FileResponse("favicon.png")
     else:
