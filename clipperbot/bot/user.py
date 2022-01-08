@@ -306,6 +306,13 @@ Also consider deleting the original clip if you don't need it.""")
 
         else:
             logger.info(f"Not allowed to link big {clip_fpath} ({clip_size//(1024*1024)}MB)at {(ctx.guild.name, ctx.channel.name)}")
+
+            try:
+                os.remove(clip_fpath)
+                self.bot.logger.info(f"Deleted {clip_fpath}")
+            except FileNotFoundError:
+                self.bot.logger.info(f"File {clip_fpath}"f" not found for deletion.")
+
             await reply(ctx, f"File size: {clip_size/(1024*1024):.2f} MB, cannot post as attachment.")
 
 
