@@ -306,7 +306,7 @@ Also consider deleting the original clip if you don't need it.""")
 
         else:
             logger.info(f"Not allowed to link big {clip_fpath} ({clip_size//(1024*1024)}MB)at {(ctx.guild.name, ctx.channel.name)}")
-            await ctx.reply(f"File size: {clip_size/(1024*1024):.2f} MB, cannot post as attachment.")
+            await reply(ctx, f"File size: {clip_size/(1024*1024):.2f} MB, cannot post as attachment.")
 
 
 @dataclasses.dataclass(eq=True, frozen=True)
