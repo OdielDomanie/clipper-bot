@@ -279,7 +279,7 @@ Also consider deleting the original clip if you don't need it.""")
     ):
         logger = self.bot.logger
         reply = self.bot.get_cog("DeletableMessages").reply
-        if self.bot.get_link_perm(ctx.guild.id):
+        if self.bot.get_link_perm(ctx.guild.id) == "true":
             logger.info(
                 f"Linking big {clip_fpath} ({clip_size//(1024*1024)}MB)"
                 f" at {(ctx.guild.name, ctx.channel.name)}")
