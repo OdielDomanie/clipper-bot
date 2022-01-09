@@ -5,18 +5,55 @@ from .. import utils
 from . import streams
 from ..video.download import (sanitize_chnurl, sanitize_vid_url, 
     fetch_yt_metadata, RateLimited)
-
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from . import ClipBot
 
 class Admin(commands.Cog):
-    """Only available with \"Manage Server\" permission,
-    the same permission required to add the bot."""
+    """Available with \"Manage Server\" permission, the same permission required to add the bot.
+Use `give_permission` command to allow a role to use these commands as well."""
 
-    def __init__(self, bot):
+    def __init__(self, bot:"ClipBot"):
         self.bot = bot
         self.register_lock = asyncio.Lock()
         
     async def cog_check(self, ctx):
-        return await utils.manserv_or_owner(ctx)
+        
+        try:
+            member_roles = set()
+            for role in ctx.author.roles:
+                member_roles.add(role.name)
+
+            role_ok = not member_roles.isdisjoint(self.bot.get_role_perm(ctx.guild.id))
+        except AttributeError:
+            role_ok = False
+
+        return (await utils.manserv_or_owner(ctx)) or role_ok
+
+    @commands.command(brief="Give a role permission for \"Admin\" commands.")
+    async def give_permission(self, ctx, role:str):
+
+        self.bot.logger.info(f"Setting role perm on {ctx.guild.name}"
+            f" to {role}.")
+        self.bot.add_role_perm(ctx.guild.id, role)
+
+        await ctx.send(f"Roles with admin permissions: {', '.join(self.bot.get_role_perm(ctx.guild.id))}")
+    
+    @commands.command(brief="Remove a role's permission for \"Admin\" commands.")
+    async def remove_permission(self, ctx, role:str):
+
+        self.bot.logger.info(f"Removing role perm on {ctx.guild.name} to {role}.")
+        try:
+            self.bot.remove_role_perm(ctx.guild.id, role)
+        except KeyError:
+            pass
+        await ctx.send(f"Roles with admin permissions: {', '.join(self.bot.get_role_perm(ctx.guild.id))}")
+    
+    @commands.command(brief="View the roles that have permission for \"Admin\" commands.")
+    async def role_permissions(self, ctx):
+
+        self.bot.get_role_perm(ctx.guild.id)
+        await ctx.send(f"Roles with admin permissions: {', '.join(self.bot.get_role_perm(ctx.guild.id))}")
 
     allow_link_brief = "Should the bot post big clips as links."
     allow_link_help = (
