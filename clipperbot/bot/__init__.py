@@ -34,6 +34,8 @@ class ClipBot(commands.Bot):
         # {guild_id: perm}
         self.possible_link_perms = possible_link_perms
         self.link_perms = PersistentDict(database, "link_perms", int, str)
+
+        self.role_perms = PersistentDict(database, "role_perms", int, str)
         
         # {guild_id: _}
         self.guild_whitelist = PersistentDict(database, "guild_whitelist",
@@ -90,6 +92,26 @@ class ClipBot(commands.Bot):
     
     def get_link_perm(self, guild_id:int) -> str:
         return self.link_perms.get(guild_id, "false")
+    
+    def get_role_perm(self, guild_id:int):
+        if guild_id in self.role_perms:
+            role_names:str = self.role_perms[guild_id]
+            roles_list = role_names.split(",")
+            return set(roles_list)
+        else:
+            return set()
+    
+    def add_role_perm(self, guild_id:int, role:str):
+        current_roles = self.get_role_perm(guild_id)
+        current_roles.add(role)
+        roles_str = ",".join(current_roles)
+        self.role_perms[guild_id] = roles_str
+    
+    def remove_role_perm(self, guild_id:int, role:str):
+        current_roles = self.get_role_perm(guild_id)
+        current_roles.remove(role)
+        roles_str = ",".join(current_roles)
+        self.role_perms[guild_id] = roles_str
 
     async def on_ready(self):
         # This part is fragile
@@ -110,7 +132,7 @@ class ClipBot(commands.Bot):
                     streams.listen(self, txt_chn, chn_url))
                 self.listens[txt_chn] = listen_task
 
-                await asyncio.sleep(5)  # to avoid stacking the threads
+                await asyncio.sleep(1)  # to avoid stacking the threads
 
             asyncio.create_task(streams.periodic_cleaning(DOWNLOAD_DIR,
             MAX_DOWNLOAD_STORAGE, self.active_files, frequency=180))
