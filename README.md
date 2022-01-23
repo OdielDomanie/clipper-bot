@@ -1,4 +1,8 @@
-Discord bot that clips youtube livestreams.
+# Clipper Bot
+
+Discord bot that clips on-going youtube livestreams.
+
+Clips are un-reencoded and at full resolution.
 
 Sample usage:
 ```
@@ -22,4 +26,4 @@ Dependencies:
 * uvicorn
 * ffmpeg
 ---
-Contact OdielDomanie at discord: Terlick#8575
+If you want to add the bot to your server or otherwise need help with it, contact OdielDomanie at Discord: Terlick#8575
