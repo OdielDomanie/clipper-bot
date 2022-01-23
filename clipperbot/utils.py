@@ -12,6 +12,7 @@ import os
 
 logger = logging.getLogger("clipping.bot")
 
+assigned_table_names = set()
 
 class PersistentDict(MutableMapping):
     """Dictionary that loads from database upon initilization,
@@ -27,7 +28,10 @@ class PersistentDict(MutableMapping):
         self.store = {}
         self._cache_valid = False
 
-        self._create_table()    
+        assert table_name not in assigned_table_names
+        self._create_table()
+
+        assigned_table_names.add(table_name)
 
     def _create_table(self):
         con = sqlite3.connect(self.database)
@@ -70,6 +74,129 @@ class PersistentDict(MutableMapping):
         con.commit()
         con.close()
         self.store[key] = value
+
+    def __delitem__(self, key):
+        con = sqlite3.connect(self.database)
+        cur = con.cursor()
+        cur.execute(
+            f"DELETE FROM '{self.table_name}' WHERE key_ = ?", (str(key),)
+        )
+        con.commit()
+        con.close()
+        try:
+            del self.store[key]
+        except KeyError:
+            pass
+
+    def __iter__(self):
+        if not self._cache_valid:
+            self._populate_from_sql()
+        return iter(self.store)
+    
+    def __len__(self):
+        if not self._cache_valid:
+            self._populate_from_sql()
+        return len(self.store)
+
+
+class PersistentDictofSet(MutableMapping):
+    """Like `PersistentDict`, but stores sets as values.
+    """
+    def __init__(self, database:str, table_name:str,
+            str_to_key, str_to_val:Callable[[str],Any]):
+        self.database = database
+        self.table_name = table_name
+        self.str_to_key = str_to_key
+        self.str_to_val = str_to_val
+
+        self.store = {}
+        self._cache_valid = False
+
+        assert table_name not in assigned_table_names
+        self._create_table()
+
+        assigned_table_names.add(table_name)
+
+    def _create_table(self):
+        con = sqlite3.connect(self.database)
+        cur = con.cursor()
+        cur.execute(
+            f"""CREATE TABLE IF NOT EXISTS '{self.table_name}' (
+                key_ ,
+                value_,
+                UNIQUE(key_, value_) ON CONFLICT REPLACE)"""
+        )
+        con.commit()
+        con.close()
+
+    def _populate_from_sql(self):
+        con = sqlite3.connect(self.database)
+        cur = con.cursor()
+        cur.execute(
+            f"SELECT key_, value_ FROM '{self.table_name}'"
+        )
+        tuple_results = cur.fetchall()
+        store = {}
+        for key, value in tuple_results:
+            store.setdefault(self.str_to_key(key), set()).add(self.str_to_val(value))
+        self.store = store
+        self._cache_valid = True
+
+    def __getitem__(self, key):
+        if not self._cache_valid:
+            self._populate_from_sql()
+        return self.store[key]
+    
+    def add(self, key, value):
+        # test validity
+        if not (key == self.str_to_key(str(key))
+            and value == self.str_to_val(str(value))):
+            raise ValueError
+
+        con = sqlite3.connect(self.database)
+        cur = con.cursor()
+        cur.execute(
+            f"INSERT INTO '{self.table_name}' VALUES (?, ?)", (str(key), str(value))
+        )
+        con.commit()
+        con.close()
+        self.store.setdefault(key, set()).add(value)
+
+    def __setitem__(self, key, value_set):
+        
+        # test validity
+        if (key != self.str_to_key(str(key))
+            or any(
+                value != self.str_to_val(str(value)) for value in value_set
+                )
+            ):
+            raise ValueError
+
+        con = sqlite3.connect(self.database)
+        cur = con.cursor()
+
+        for value in value_set:
+            
+            cur.execute(
+                f"INSERT INTO '{self.table_name}' VALUES (?, ?)", (str(key), str(value))
+            )
+
+        con.commit()
+        con.close()
+        self.store[key] = value_set
+    
+    def remove(self, key, value):
+        con = sqlite3.connect(self.database)
+        cur = con.cursor()
+        cur.execute(
+            f"DELETE FROM '{self.table_name}' WHERE key_ = ? AND value_ = ?", (str(key), str(value))
+        )
+        con.commit()
+        con.close()
+        try:
+            self.store[key].remove(value)
+        except KeyError:
+            pass
 
     def __delitem__(self, key):
         con = sqlite3.connect(self.database)
