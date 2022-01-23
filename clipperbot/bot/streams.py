@@ -119,25 +119,24 @@ async def stream_started_msg(txtchn:TextChannel, title, vid_url):
 async def stream_stopped_msg(txtchn:TextChannel, title, vid_url, exception=None):
     logger.info(f"Stream {title} ({vid_url}) stopped at"
         f" {txtchn.guild.name}/{txtchn.name}.")
-    try:
-        if isinstance(exception, RateLimited):
-            await auto_msg_ratelimits.setdefault(
-                txtchn.id, utils.RateLimit(RT_TIME, RT_REQS)
-            ).skip(txtchn.send
-            )(
-                f"Stopped Capturing stream: {title} (<{vid_url}>)."
-                "\nBot is rate limited :("
-            )
-        else:
-            await auto_msg_ratelimits.setdefault(
-                txtchn.id, utils.RateLimit(RT_TIME, RT_REQS)
-            ).skip(txtchn.send
-            )(
-                f"Stopped Capturing stream: {title} (<{vid_url}>)."
-            )
-            # await txtchn.send(f"Stopped Capturing stream: {title} (<{vid_url}>)")
-    except Exception as e:
-        logger.error(f"Can't send \"stream stopped\" message: {e}")
+    # try:
+    #     if isinstance(exception, RateLimited):
+    #         await auto_msg_ratelimits.setdefault(
+    #             txtchn.id, utils.RateLimit(RT_TIME, RT_REQS)
+    #         ).skip(txtchn.send
+    #         )(
+    #             f"Stopped Capturing stream: {title} (<{vid_url}>)."
+    #             "\nBot is rate limited :("
+    #         )
+    #     else:
+    #         await auto_msg_ratelimits.setdefault(
+    #             txtchn.id, utils.RateLimit(RT_TIME, RT_REQS)
+    #         ).skip(txtchn.send
+    #         )(
+    #             f"Stopped Capturing stream: {title} (<{vid_url}>)."
+    #         )
+    # except Exception as e:
+    #     logger.error(f"Can't send \"stream stopped\" message: {e}")
 
 
 async def periodic_cleaning(dir, max_size, no_delete, frequency=1800):
