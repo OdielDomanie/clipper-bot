@@ -2,7 +2,7 @@ import asyncio
 import logging
 import discord
 from discord.ext import commands
-from ..utils import PersistentDict
+from ..utils import PersistentDict, PersistentDictofSet
 from ..video.download import StreamDownload
 from . import streams
 from .user import Clipping
@@ -35,7 +35,8 @@ class ClipBot(commands.Bot):
         self.possible_link_perms = possible_link_perms
         self.link_perms = PersistentDict(database, "link_perms", int, str)
 
-        self.role_perms = PersistentDict(database, "role_perms", int, str)
+        self.role_perms_admin = PersistentDictofSet(database, "role_perms_admin", int, str)
+        self.role_perms_user = PersistentDictofSet(database, "role_perms_user", int, str)
         
         # {guild_id: _}
         self.guild_whitelist = PersistentDict(database, "guild_whitelist",
@@ -94,25 +95,38 @@ class ClipBot(commands.Bot):
     def get_link_perm(self, guild_id:int) -> str:
         return self.link_perms.get(guild_id, "false")
     
-    def get_role_perm(self, guild_id:int):
-        if guild_id in self.role_perms:
-            role_names:str = self.role_perms[guild_id]
-            roles_list = role_names.split(",")
-            return set(roles_list)
+    def get_role_perm(self, guild_id:int, category="admin"):
+        
+        if category == "admin":
+            role_perms = self.role_perms_admin
+        elif category == "user":
+            role_perms = self.role_perms_user
         else:
-            return set()
+            raise ValueError()
+        
+        return role_perms.get(guild_id, set())
     
-    def add_role_perm(self, guild_id:int, role:str):
-        current_roles = self.get_role_perm(guild_id)
-        current_roles.add(role)
-        roles_str = ",".join(current_roles)
-        self.role_perms[guild_id] = roles_str
+    def add_role_perm(self, guild_id:int, role:str, category="admin"):
+
+        if category == "admin":
+            role_perms = self.role_perms_admin
+        elif category == "user":
+            role_perms = self.role_perms_user
+        else:
+            raise ValueError()
+        
+        role_perms.add(guild_id, role)
     
-    def remove_role_perm(self, guild_id:int, role:str):
-        current_roles = self.get_role_perm(guild_id)
-        current_roles.remove(role)
-        roles_str = ",".join(current_roles)
-        self.role_perms[guild_id] = roles_str
+    def remove_role_perm(self, guild_id:int, role:str, category="admin"):
+
+        if category == "admin":
+            role_perms = self.role_perms_admin
+        elif category == "user":
+            role_perms = self.role_perms_user
+        else:
+            raise ValueError()
+        
+        role_perms.remove(guild_id, role)
 
     async def on_ready(self):
         # This part is fragile
