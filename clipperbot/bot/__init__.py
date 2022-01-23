@@ -73,7 +73,8 @@ class ClipBot(commands.Bot):
     async def info(ctx: commands.Context):
         no_mention = discord.AllowedMentions(users=False)
         info_string = (
-        f"\nRun by <@{ctx.bot.owner_id}>."
+        f"""\nRun by <@{ctx.bot.owner_id}>.
+<https://github.com/OdielDomanie/clipper-bot>"""
         )
         await ctx.send(info_string, allowed_mentions=no_mention)
 
