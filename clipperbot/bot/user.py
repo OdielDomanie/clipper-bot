@@ -63,10 +63,17 @@ If the clip file is too big, a direct download link is posted instead, if enable
         if ctx.channel not in self.bot.streams:
             # No stream has been run in this channel
             return
-    
-        from_time, duration, relative_start = self._calc_time(
-                                        ctx, relative_start, duration
-        )
+
+        try:
+            from_time, duration, relative_start = self._calc_time(
+                                            ctx, relative_start, duration
+            )
+        except ValueError:
+            if relative_start == "adj" or relative_start == "adjust":
+                await ctx.send(f"Wrong usage, try `{ctx.prefix}adjust` while replying to a clip?")
+                return
+            else:
+                raise commands.BadArgument()
 
         if duration > self.bot.max_clip_duration:
             # Duration more than allowed.
