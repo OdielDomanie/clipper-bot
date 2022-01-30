@@ -30,10 +30,10 @@ async def clip(stream_filepath:str, title:str,
         millisecs=False)
     clip_filepath = os.path.join(clip_dir,
         f"{title} {time_stamp}_{duration.total_seconds():.2f}{extension}")
-    
+
     await cut_video(stream_filepath, from_time, duration,
         clip_filepath, audio_only, ffmpeg, relative_start=relative_start)
-    
+
     clean_space(CLIP_DIR, MAX_CLIP_STORAGE)
 
     return clip_filepath
@@ -85,7 +85,7 @@ async def cut_video(stream_filepath:str,
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
 
         logger.debug(f"Clip process started.")
-        
+
         ffmpeg_logger = logging.getLogger(logger.name + ".ffmpeg")
         encoding = sys.stdout.encoding if sys.stdout.encoding else "utf-8"
 
@@ -108,17 +108,17 @@ async def create_thumbnail(video_fpath:str, ffmpeg=FFMPEG):
 
     cmd = f"{ffmpeg} -n -i {shlex.quote(video_fpath)} -vframes 1 -q:v 4\
         {shlex.quote(thumbnail_fpath)}"
-    
+
     logger.info(shlex.join(shlex.split(cmd)))
 
-    process = await asyncio.create_subprocess_exec(*shlex.split(cmd), 
+    process = await asyncio.create_subprocess_exec(*shlex.split(cmd),
         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
-    
+
     ffmpeg_logger = logging.getLogger(logger.name + ".ffmpeg")
     encoding = sys.stdout.encoding if sys.stdout.encoding else "utf-8"
     ffmpeg_out, _ = await process.communicate()
     ffmpeg_logger.debug(str(ffmpeg_out, encoding))
-    
+
     return_code = await process.wait()
     if return_code == 0:
         return thumbnail_fpath
@@ -129,3 +129,47 @@ async def create_thumbnail(video_fpath:str, ffmpeg=FFMPEG):
             return thumbnail_fpath
         else:
             return None
+
+
+CROP_STR = {
+    "all": "crop=in_w:in_h:0:0",
+    "tl" : "crop=in_w/2:in_h/2:0:0",    
+    "tr" : "crop=in_w/2:in_h/2:in_w/2:0",
+    "bl" : "crop=in_w/2:in_h/2:0:in_h/2",
+    "br" : "crop=in_w/2:in_h/2:in_w/2:in_h/2"
+}
+
+async def create_screenshot(stream_filepath:str, pos, relative_start:dt.timedelta, ffmpeg=FFMPEG) -> bytes:
+    "Creates a png screenshots and returns it as bytes."
+
+    # Check if the stream file has .part appended.
+    stream_filepath += ".part"
+    if not os.path.isfile(stream_filepath):
+        stream_filepath = stream_filepath.rsplit(".", maxsplit=1)[0]
+        if not os.path.isfile(stream_filepath):
+            logger.error(f"Clip could not be created:"
+                f" {stream_filepath} not found.")
+            raise FileNotFoundError
+
+    cmd = f"{ffmpeg} -n -sseof {relative_start.total_seconds()-1} -i {shlex.quote(stream_filepath)}\
+        -vframes 1 -filter:v \"{CROP_STR[pos]}\" -c:v png -f image2pipe -"
+
+    logger.info(shlex.join(shlex.split(cmd)))
+
+    process = await asyncio.create_subprocess_exec(*shlex.split(cmd),
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+
+    ffmpeg_out, ffmpeg_err = await process.communicate()
+
+    ffmpeg_logger = logging.getLogger(logger.name + ".ffmpeg")
+    encoding = sys.stdout.encoding if sys.stdout.encoding else "utf-8"
+    ffmpeg_logger.debug(str(ffmpeg_err, encoding))
+
+    return_code = await process.wait()
+
+    if return_code == 0:
+        return ffmpeg_out
+    else:
+        logger.error(f"Thumbnail creation of {stream_filepath} failed with"
+            f" {return_code}.")
+        raise Exception("Screenshot not created.")

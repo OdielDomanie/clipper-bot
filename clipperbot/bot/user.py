@@ -6,11 +6,13 @@ import datetime as dt
 import os
 import os.path
 import typing
+import io
 import discord
 from discord.ext import commands
 from .. import utils
 from . import streams
 from ..video import clip
+from ..video.clip import CROP_STR
 from ..video.download import StreamDownload
 from ..utils import timedelta_to_str, hour_floor_diff
 from ..webserver import serveclips
@@ -85,6 +87,46 @@ If the clip file is too big, a direct download link is posted instead, if enable
         await self._create_n_send_clip(
             ctx, from_time, duration, audio_only, relative_start=relative_start
         )
+
+
+    screenshot_help =(
+f"""Create a screenshot. sample usage:
+`ss`     | Screenshot the whole screen.
+`ss bl`  | Screenshot the bottomleft quadrant.
+Valid position arguments: {", ".join(CROP_STR.keys())}""")
+    screenshot_brief = "Create a screenshot"
+    @commands.command(name="ss", help=screenshot_help, brief=screenshot_brief)
+    async def screenshot(self, ctx, crop:str="all"):
+
+        crop = crop.strip()
+
+        if crop not in CROP_STR:
+            await ctx.reply("Valid position arguments: " + ", ".join(CROP_STR.keys()))
+
+        try:
+            png = await self._create_ss(ctx, pos=crop, relative_start=dt.timedelta(seconds=-3))
+        except:
+            return
+        
+        stream = self.bot.streams[ctx.channel]
+
+        send = self.bot.get_cog("DeletableMessages").send
+        
+        try:
+            await send(ctx, file=discord.File(io.BytesIO(png), f"{stream.title}.png"), fpath=None)
+        except:
+            self.bot.logger.exception("Could not send screenshot to " + ctx.channel)
+        
+    
+    async def _create_ss(self, ctx, *, pos, relative_start=dt.timedelta(seconds=0)):
+        stream = self.bot.streams[ctx.channel]
+        try:
+            png:bytes = await clip.create_screenshot(stream.filepath, pos, relative_start)
+        except Exception as e:
+            self.bot.logger.exception(e)
+            self.bot.logger.exception("Could not create screenshot from " + stream.filepath)
+            raise
+        return png
 
 
     clip_s_help = (
