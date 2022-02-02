@@ -12,7 +12,7 @@ class NoFaceException(Exception):
     pass
 
 
-def facedetect(png_data:bytes, faces_n=2, box_expand=1.5) -> bytes:
+def facedetect(png_data:bytes, faces_n=1, box_expand=1.5) -> bytes:
     "Returns a png of cropped faces stitched together as bytes."
 
     png_array = np.frombuffer(png_data, "uint8")
@@ -26,7 +26,7 @@ def facedetect(png_data:bytes, faces_n=2, box_expand=1.5) -> bytes:
         gray,
         scaleFactor = 1.1,
         minNeighbors = 5,
-        minSize = (64, 64)
+        minSize = (72, 72)
     )
 
     if len(faces) == 0:

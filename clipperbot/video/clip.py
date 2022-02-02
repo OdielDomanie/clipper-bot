@@ -132,7 +132,7 @@ async def create_thumbnail(video_fpath:str, ffmpeg=FFMPEG):
 
 
 CROP_STR = {
-    "all": "crop=in_w:in_h:0:0",
+    "whole": "crop=in_w:in_h:0:0",
     "tl" : "crop=in_w/2:in_h/2:0:0",    
     "tr" : "crop=in_w/2:in_h/2:in_w/2:0",
     "bl" : "crop=in_w/2:in_h/2:0:in_h/2",
