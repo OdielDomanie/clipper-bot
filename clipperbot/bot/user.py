@@ -16,6 +16,7 @@ from ..video.clip import CROP_STR
 from ..video.download import StreamDownload
 from ..utils import timedelta_to_str, hour_floor_diff
 from ..webserver import serveclips
+from ..video import facetracking
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from . import ClipBot
@@ -91,31 +92,56 @@ If the clip file is too big, a direct download link is posted instead, if enable
 
     screenshot_help =(
 f"""Create a screenshot. sample usage:
-`ss`     | Screenshot the whole screen.
-`ss bl`  | Screenshot the bottomleft quadrant.
-Valid position arguments: {", ".join(CROP_STR.keys())}""")
+`ss`          | Screenshot cropped to the face.
+`ss everyone` | Screenshot everyone's faces.
+`ss whole`    | Screenshot the whole frame.
+`ss bl`       | Screenshot the bottomleft quadrant.
+Valid position arguments: `everyone`, `{"`, `".join(CROP_STR.keys())}`""")
     screenshot_brief = "Create a screenshot"
     @commands.command(name="ss", help=screenshot_help, brief=screenshot_brief)
-    async def screenshot(self, ctx, crop:str="all"):
+    async def screenshot(self, ctx, crop:str="face"):
+        receive_time = dt.datetime.now()
 
-        crop = crop.strip()
+        crop = crop.lower()
+
+        if crop == "face":
+            crop_face = 1
+            crop = "whole"
+        elif crop == "everyone" or crop == "all":
+            crop_face = 10
+            crop = "whole"
+        else:
+            crop_face = 0
 
         if crop not in CROP_STR:
             await ctx.reply("Valid position arguments: " + ", ".join(CROP_STR.keys()))
+            return
 
         try:
             png = await self._create_ss(ctx, pos=crop, relative_start=dt.timedelta(seconds=-3))
         except:
             return
+
+        if crop_face != 0:
+            try:
+                png = facetracking.facedetect(png, crop_face)
+            except facetracking.NoFaceException:
+                pass
         
         stream = self.bot.streams[ctx.channel]
 
         send = self.bot.get_cog("DeletableMessages").send
+
+        time_taken_str = "{:.3f}".format((dt.datetime.now()-receive_time).total_seconds())
+        self.bot.logger.info(
+                f"Posting screenshot at {(ctx.guild.name, ctx.channel.name)}."
+                f" Took {time_taken_str}")
         
         try:
             await send(ctx, file=discord.File(io.BytesIO(png), f"{stream.title}.png"), fpath=None)
         except:
             self.bot.logger.exception("Could not send screenshot to " + ctx.channel)
+        
         
     
     async def _create_ss(self, ctx, *, pos, relative_start=dt.timedelta(seconds=0)):
