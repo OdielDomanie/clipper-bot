@@ -63,7 +63,7 @@ Use `give_permission` command to allow a role to use these commands as well."""
 False by default."
 )
     @commands.command(help = allow_link_help, brief = allow_link_brief)
-    async def allow_link(self, ctx, allow:str):
+    async def allow_links(self, ctx, allow:str):
 
         allow = allow.lower() 
         if allow not in self.bot.possible_link_perms:
