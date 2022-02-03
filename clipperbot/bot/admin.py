@@ -30,7 +30,9 @@ Use `give_permission` command to allow a role to use these commands as well."""
 
         return (await utils.manserv_or_owner(ctx)) or role_ok
 
-    @commands.command(brief="Give a role permission for \"Admin\" commands.")
+    @commands.command(
+        brief="Give a role permission for \"Admin\" commands.",
+        help="Give a role permission for \"Admin\" commands.")
     async def give_permission(self, ctx, role:str):
 
         self.bot.logger.info(f"Setting role perm on {ctx.guild.name}"
@@ -60,7 +62,7 @@ Use `give_permission` command to allow a role to use these commands as well."""
 "If allowed, the bot can post clips that are too large to be uploaded"
 " directly as attachments as temporary links to a self hosted webserver"
 " instead.\
-False by default."
+False by default. Valid arguments: `true`, `false`"
 )
     @commands.command(help = allow_link_help, brief = allow_link_brief)
     async def allow_links(self, ctx, allow:str):
