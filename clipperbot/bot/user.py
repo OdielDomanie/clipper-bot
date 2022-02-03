@@ -98,7 +98,7 @@ f"""Create a screenshot. sample usage:
 `ss bl`       | Screenshot the bottomleft quadrant.
 Valid position arguments: `everyone`, `{"`, `".join(CROP_STR.keys())}`""")
     screenshot_brief = "Create a screenshot"
-    @commands.command(name="ss", help=screenshot_help, brief=screenshot_brief)
+    @commands.command(name="ss", aliases=["s"], help=screenshot_help, brief=screenshot_brief)
     async def screenshot(self, ctx, crop:str="face"):
         receive_time = dt.datetime.now()
 
