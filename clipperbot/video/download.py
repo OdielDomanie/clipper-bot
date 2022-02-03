@@ -105,7 +105,7 @@ class StreamDownload:
                 base_url = "https://holodex.net/api/v2/videos/"
                 url = parse.urljoin(base_url, video_id)
                 async with session.get(url) as response:
-                    resp = response.json()
+                    resp = await response.json()
                     time_str = resp["start_actual"]
                     StreamDownload.actual_start_cache[video_id] = (
                         dateutil.parser.isoparse(time_str)
