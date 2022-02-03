@@ -156,11 +156,10 @@ Valid position arguments: `everyone`, `{"`, `".join(CROP_STR.keys())}`""")
 
 
     clip_s_help = (
-f"""Clip with timestamp relative to the start of the stream.
-May be inaccurate up to {POLL_INTERVAL}, use `c sh` for precise timing.""")
+f"""Clip with timestamp relative to the start of the stream.""")
     clip_s_brief = "Clip relative to stream start."
 
-    @clip.command(help = clip_s_help, brief = clip_s_brief)
+    @clip.command(name="fromstart", aliases=["s"], help = clip_s_help, brief = clip_s_brief)
     async def s(self, ctx, from_start:to_timedelta,
         duration = "..."):
         if duration == "...":
@@ -169,6 +168,11 @@ May be inaccurate up to {POLL_INTERVAL}, use `c sh` for precise timing.""")
             duration = to_timedelta(duration)
     
         audio_only = ctx.invoked_parents[0] in ["audio", "a"]
+
+        stream = self.bot.streams[ctx.channel]
+        if stream.actual_start is not None:
+            from_start -= stream.start_time.astimezone() - stream.actual_start
+
         await self._create_n_send_clip(ctx, from_start, duration, audio_only)
     
 
@@ -176,8 +180,8 @@ May be inaccurate up to {POLL_INTERVAL}, use `c sh` for precise timing.""")
 f"""Clip with timestamp relative to the start of the stream.
 Assume the stream started at the hour mark.""")
     clip_sh_brief = "Like `s`, but assume stream started at the hour mark."
-
-    @clip.command(help = clip_sh_help, brief = clip_sh_brief)
+    # Disabled as it bloats UI
+    @clip.command(help = clip_sh_help, brief = clip_sh_brief, enabled=False)
     async def sh(self, ctx, from_start:to_timedelta,
         duration = "..."):
         if duration == "...":
