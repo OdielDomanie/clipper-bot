@@ -159,7 +159,7 @@ Valid position arguments: `everyone`, `{"`, `".join(CROP_STR.keys())}`""")
 f"""Clip with timestamp relative to the start of the stream.""")
     clip_s_brief = "Clip relative to stream start."
 
-    @clip.command(help = clip_s_help, brief = clip_s_brief)
+    @clip.command(name="fromstart", aliases=["s"], help = clip_s_help, brief = clip_s_brief)
     async def s(self, ctx, from_start:to_timedelta,
         duration = "..."):
         if duration == "...":
