@@ -169,6 +169,11 @@ May be inaccurate up to {POLL_INTERVAL}, use `c sh` for precise timing.""")
             duration = to_timedelta(duration)
     
         audio_only = ctx.invoked_parents[0] in ["audio", "a"]
+
+        stream = self.bot.streams[ctx.channel]
+        if stream.actual_start is not None:
+            from_start -= stream.start_time.astimezone() - stream.actual_start
+
         await self._create_n_send_clip(ctx, from_start, duration, audio_only)
     
 
