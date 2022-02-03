@@ -7,7 +7,10 @@ import http
 import datetime as dt
 import time
 import functools
+from urllib import parse
+import dateutil.parser
 import youtube_dl as ytdl
+import aiohttp
 from .. import DOWNLOAD_DIR, YTDL_EXEC, POLL_INTERVAL
 
 
@@ -50,7 +53,8 @@ class StreamDownload:
         self._proc_lock = asyncio.Lock()
         self.proc = None
         self.start_count = 0  # no of times start_download has been called.
-        self.start_time = None
+        self.start_time = None  # When the download starts
+        self.actual_start = None  # When the stream started at the original platform
         self.done = False
 
     async def start_download(self):
@@ -75,7 +79,15 @@ class StreamDownload:
                     self.logger.info(f"Sharing ({self.start_count}) download for"
                         f" {self.vid_url}")
 
+                if self.website == "youtube":
+                    video_id = self.vid_url.split("=")[-1]
+                    try:
+                        await self.get_actual_start(video_id)
+                    except Exception as exc:
+                        self.logger.error(exc)
+
             await self.wait_stop_task
+
         except BaseException as e:
             if not isinstance(e, asyncio.CancelledError):
                 self.logger.exception(e)
@@ -85,6 +97,20 @@ class StreamDownload:
                     if self.start_count == 0:
                         await self.stop_process()
             raise e
+    
+    actual_start_cache = {}  # Slow memory leak
+    async def get_actual_start(self, video_id):
+        if video_id not in StreamDownload.actual_start_cache:
+            async with aiohttp.ClientSession() as session:
+                base_url = "https://holodex.net/api/v2/videos/"
+                url = parse.urljoin(base_url, video_id)
+                async with session.get(url) as response:
+                    resp = response.json()
+                    time_str = resp["start_actual"]
+                    StreamDownload.actual_start_cache[video_id] = (
+                        dateutil.parser.isoparse(time_str)
+                    )
+        self.actual_start = StreamDownload.actual_start_cache[video_id]
 
     async def _download(self):
         """Tries to start the stream download.
