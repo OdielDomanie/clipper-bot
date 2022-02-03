@@ -78,8 +78,11 @@ def Ranged_Static_Directory(directory):
         request = Request(scope, receive)
         content_range = request.headers.get('range')
 
+        requests_range = content_range is not None
+        if not requests_range:
+            content_range = "bytes=0-"
+
         content_length = file_size
-        status_code = 200
         headers = {}
 
         if content_range is not None:
@@ -100,7 +103,7 @@ def Ranged_Static_Directory(directory):
                 await Response(status_code=404)(scope, receive, send)
                 return
 
-            status_code = 206
+            status_code = 206 if requests_range else 200
 
             headers['Content-Range'] = f'bytes {range_start}-{range_end}/{file_size}'
 
