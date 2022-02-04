@@ -219,13 +219,6 @@ Also consider deleting the original clip if you don't need it.""")
         duration = og_clip.duration + to_timedelta(duration_adjust)
         relative_start = None
 
-        if og_clip.relative_start is not None:
-            if og_clip.stream.done:
-                relative_start = og_clip.relative_start + start_adjust
-            else:
-                difference = - og_clip.relative_start + og_clip.stream.start_time + og_clip.from_time - dt.datetime.now()
-                relative_start = og_clip.relative_start + difference + start_adjust
-
         await self._create_n_send_clip(ctx, from_time, duration,
             audio_only=og_clip.audio_only, relative_start=relative_start)
     
