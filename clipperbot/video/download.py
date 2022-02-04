@@ -84,7 +84,7 @@ class StreamDownload:
                     try:
                         await self.get_actual_start(video_id)
                     except Exception as exc:
-                        self.logger.error(exc)
+                        self.logger.exception(exc)
 
             await self.wait_stop_task
 
