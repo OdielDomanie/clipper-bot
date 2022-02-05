@@ -137,7 +137,7 @@ False by default. Valid arguments: `true`, `false`"
             return
 
         try:
-            if website == 'youtube':
+            if website == 'youtube' or website == 'twitch':
                 info_dict = fetch_yt_metadata(vid_url)
 
                 if not info_dict.get("is_live"):

@@ -23,11 +23,17 @@ def sanitize_vid_url(vid_url):
     if "." not in vid_url:
         vid_url = "https://www.youtube.com/watch?v=" + vid_url
     vid_url = vid_url
+    
     if "youtube.com/watch?v=" in vid_url:
         website = "youtube"
         return vid_url, website
+    
+    elif "twitch.tv/rtgame" in vid_url:
+        website = "twitch"
+        return vid_url, website
+    
     else:
-        raise ValueError("Only youtube.com is supported.")
+        raise ValueError("Only youtube.com or twitch.tv is supported.")
 
 
 class StreamDownload:
@@ -118,7 +124,7 @@ class StreamDownload:
         Can raise `ValueError`, `TimeoutError`, or `RateLimited`.
         Sets `self.proc` .
         """
-        if  "youtube" == self.website:
+        if  "youtube" == self.website or "twitch" == self.website:
         
             # try:
             #     os.remove(self.filepath)
@@ -128,7 +134,7 @@ class StreamDownload:
             await self._yt_download()
         
         else:
-            raise ValueError("Only youtube is supported.")
+            raise ValueError("Only youtube or twitch are supported.")
 
     async def _yt_download(self):
         yt_proc = await _yt_process(self.ytdl_exec, self.vid_url, self.filepath)
@@ -331,7 +337,9 @@ def fetch_yt_metadata(url:str):
         with ytdl.YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(url, download=False)
     except ytdl.utils.DownloadError as e:
-        if "This live event will begin in" in e.args[0]:
+        # "<channel_name> is offline error is possible in twitch 
+        if "This live event will begin in" in e.args[0] \
+            or "is offline" in  e.args[0]:
             logger.debug(e)
         elif "HTTP Error 429" in e.args[0]:
             logger.critical(f"Got \"{e}\", for {url}.")

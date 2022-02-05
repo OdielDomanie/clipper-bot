@@ -14,7 +14,7 @@ logger = logging.getLogger("clipping.clip")
 async def clip(stream_filepath:str, title:str,
         from_time:dt.timedelta, duration:dt.timedelta,
         stream_start_time:dt.datetime, audio_only=False, relative_start=None,
-        clip_dir = CLIP_DIR, ffmpeg=FFMPEG):
+        website="youtube", clip_dir = CLIP_DIR, ffmpeg=FFMPEG):
     """Creates a clip file from `stream_filepath`.
     Returns path of the clip file.
     """
@@ -30,9 +30,12 @@ async def clip(stream_filepath:str, title:str,
         millisecs=False)
     clip_filepath = os.path.join(clip_dir,
         f"{title} {time_stamp}_{duration.total_seconds():.2f}{extension}")
+    
+    quick_seek = website == "youtube"
 
     await cut_video(stream_filepath, from_time, duration,
-        clip_filepath, audio_only, ffmpeg, relative_start=relative_start)
+        clip_filepath, audio_only, ffmpeg, relative_start=relative_start,
+        quickseek=quick_seek)
 
     clean_space(CLIP_DIR, MAX_CLIP_STORAGE)
 
@@ -41,7 +44,8 @@ async def clip(stream_filepath:str, title:str,
 
 async def cut_video(stream_filepath:str,
         from_time:dt.timedelta, duration:dt.timedelta,
-        output_path:str, audio_only=False, ffmpeg=FFMPEG, relative_start=None):
+        output_path:str, audio_only=False, ffmpeg=FFMPEG, relative_start=None,
+        quickseek=False):
     """ Cuts a video file.
     """
     logger.debug(f"Creating clip file from {stream_filepath} to {output_path}.\n"
@@ -69,15 +73,26 @@ async def cut_video(stream_filepath:str,
             delayed_start = relative_start.total_seconds() - 1
             start_arg = f"-sseof {delayed_start:.3f}"
 
-        command = (f"{ffmpeg} -y -hide_banner\
-            {start_arg}\
-            -t {duration.total_seconds():.3f}\
-            -i {shlex.quote(stream_filepath)}\
-            -acodec copy\
-            {'-vn' if audio_only else '-vcodec copy'}\
-            -movflags faststart\
-            {shlex.quote(output_path)}"
-        )
+        if quickseek:
+            command = (f"{ffmpeg} -y -hide_banner\
+                {start_arg}\
+                -t {duration.total_seconds():.3f}\
+                -i {shlex.quote(stream_filepath)}\
+                -acodec copy\
+                {'-vn' if audio_only else '-vcodec copy'}\
+                -movflags faststart\
+                {shlex.quote(output_path)}"
+            )
+        else:
+            command = (f"{ffmpeg} -y -hide_banner\
+                -t {duration.total_seconds():.3f}\
+                -i {shlex.quote(stream_filepath)}\
+                {start_arg}\
+                -acodec copy\
+                {'-vn' if audio_only else '-vcodec copy'}\
+                -movflags faststart\
+                {shlex.quote(output_path)}"
+            )
 
         logger.info(f"Clip cmd: {shlex.join(shlex.split(command))}")
 
