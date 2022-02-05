@@ -43,7 +43,7 @@ async def listen(bot, txtchn:TextChannel, chn_url):
 
 
 ratelimit = 0
-async def create_stream(bot, txtchn, vid_url, title):
+async def create_stream(bot, txtchn, vid_url, title, start_time):
     """Creates and starts (if necessary) 
     and registers a stream to a text channel,
     cleans up and returns when the stream ends."""
@@ -55,7 +55,7 @@ async def create_stream(bot, txtchn, vid_url, title):
                 stream = existing_stream
                 break
         if not stream:
-            stream = StreamDownload(vid_url, title)
+            stream = StreamDownload(vid_url, title, start_time=start_time)
             try:
                 os.remove(bot.streams[txtchn.id].filepath)
             except (FileNotFoundError, KeyError):

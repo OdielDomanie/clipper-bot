@@ -29,7 +29,7 @@ def sanitize_vid_url(vid_url):
         website = "youtube"
         return vid_url, website
     
-    elif "twitch.tv/rtgame" in vid_url:
+    elif "twitch.tv/" in vid_url:
         website = "twitch"
         return vid_url, website
     
@@ -252,7 +252,7 @@ async def wait_for_stream(channel_url:str, poll_interval=POLL_INTERVAL):
                     if timestamp := metadata_dict.get("timestamp"):
                         timestamp = dt.datetime.fromtimestamp(timestamp, timezone.utc)
 
-                    _cache[channel_url] = ((url, title), dt.datetime.now())
+                    _cache[channel_url] = ((url, title, timestamp), dt.datetime.now())
                     return url, title, timestamp
                 else:
                     logger.debug(f"{channel_url} not live, sleeping"
