@@ -5,6 +5,7 @@ import asyncio
 import shlex
 import http
 import datetime as dt
+from datetime import timezone
 import time
 import functools
 from urllib import parse
@@ -43,7 +44,8 @@ class StreamDownload:
     First initialize, then `start_download`.
     Delete when stream ends. 
     """
-    def __init__(self, vid_url:str, title:str, download_dir=DOWNLOAD_DIR, ytdl_exec=YTDL_EXEC):
+    def __init__(self, vid_url:str, title:str, start_time=None,
+            download_dir=DOWNLOAD_DIR, ytdl_exec=YTDL_EXEC):
         """`vid_url` can be a full url, or a youtube video id.
         Raises `ValueError` if `vid_url` not supported.
         """
@@ -60,7 +62,7 @@ class StreamDownload:
         self.proc = None
         self.start_count = 0  # no of times start_download has been called.
         self.start_time = None  # When the download starts
-        self.actual_start = None  # When the stream started at the original platform
+        self.actual_start = start_time  # When the stream started at the original platform
         self.done = False
 
     async def start_download(self):
@@ -88,7 +90,7 @@ class StreamDownload:
                 if self.website == "youtube":
                     video_id = self.vid_url.split("=")[-1]
                     try:
-                        await self.get_actual_start(video_id)
+                        await self.get_holodex_start(video_id)
                     except Exception as exc:
                         self.logger.exception(exc)
 
@@ -105,7 +107,7 @@ class StreamDownload:
             raise e
     
     actual_start_cache = {}  # Slow memory leak
-    async def get_actual_start(self, video_id):
+    async def get_holodex_start(self, video_id):
         if video_id not in StreamDownload.actual_start_cache:
             async with aiohttp.ClientSession() as session:
                 base_url = "https://holodex.net/api/v2/videos/"
@@ -214,7 +216,7 @@ async def wait_for_stream(channel_url:str, poll_interval=POLL_INTERVAL):
     """Returns when channel starts streaming.
     `channel_url` should be sanitized.
     Caches results for `poll_interval`.
-    Returns `url, title`.
+    Returns `url, title, start_time`.
     Raises `ValueError` if channel_url not supported.
     Can raise `RateLimited`.
     """
@@ -235,17 +237,23 @@ async def wait_for_stream(channel_url:str, poll_interval=POLL_INTERVAL):
                 logger.debug(f"Fetching for live stream of {channel_url}")
                 if "youtube.com/" in channel_url:
                     try:
-                        fetch_result = await _fetch_yt_chn_stream(channel_url)
+                        metadata_dict = await _fetch_yt_chn_stream(channel_url)
                     except RateLimited:
                         await asyncio.sleep(3600)
                         continue
                 else:
                     raise ValueError(f"{channel_url} channel url is"
                         "not implemented.")
-                if fetch_result:
-                    url, title = fetch_result
+                if metadata_dict is not None:
+                    url = metadata_dict["webpage_url"]
+                    title = metadata_dict["title"][:-17]
+                    
+                    # Timestamp is returned for twitch
+                    if timestamp := metadata_dict.get("timestamp"):
+                        timestamp = dt.datetime.fromtimestamp(timestamp, timezone.utc)
+
                     _cache[channel_url] = ((url, title), dt.datetime.now())
-                    return url, title
+                    return url, title, timestamp
                 else:
                     logger.debug(f"{channel_url} not live, sleeping"
                         f" {poll_interval} before trying again.")
@@ -287,7 +295,7 @@ async def _fetch_yt_chn_data(chn_url):
 
 
 async def _fetch_yt_chn_stream(channel_url:str):
-    """Return `url, title` if stream is live, `None` otherwise.
+    """Return the metadata dict if stream is live, `None` otherwise.
     Can raise `RateLimited`. For youtube channels.
     """
     logger = logging.getLogger("clipping.fetch_channel_stream")
@@ -304,8 +312,9 @@ async def _fetch_yt_chn_stream(channel_url:str):
         else:
             stream_url = metadata_dict["webpage_url"]
             stream_title = metadata_dict["title"][:-17]  # title includes fetch date for same reason
+
             logger.log(5, f"{channel_url} is live with at {stream_url} / {stream_title}")
-            return stream_url, stream_title
+            return metadata_dict
 
 
 class RateLimited(Exception):
