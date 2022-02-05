@@ -1,5 +1,7 @@
 import asyncio
 import os
+import datetime as dt
+from datetime import timezone
 from discord.ext import commands
 from .. import utils
 from . import streams
@@ -137,14 +139,17 @@ False by default. Valid arguments: `true`, `false`"
             return
 
         try:
-            if website == 'youtube':
+            if website == 'youtube' or website == 'twitch':
                 info_dict = fetch_yt_metadata(vid_url)
 
-                if not info_dict.get("is_live"):
+                if info_dict is None or not info_dict.get("is_live"):
                     await ctx.reply("The video is not live.")
                     return
 
                 title = info_dict["title"][:-17]
+
+                if start_time := info_dict.get("timestamp"):
+                        start_time = dt.datetime.fromtimestamp(start_time, timezone.utc)
             else:
                 raise NotImplementedError
 
@@ -158,7 +163,7 @@ False by default. Valid arguments: `true`, `false`"
             except KeyError: pass
 
             stream_task = asyncio.create_task(
-                streams.create_stream(self.bot, ctx.channel, vid_url,title)
+                streams.create_stream(self.bot, ctx.channel, vid_url,title, start_time)
             )
             self.bot.listens[ctx.channel] = stream_task
     

@@ -22,7 +22,7 @@ async def listen(bot, txtchn:TextChannel, chn_url):
     logger.info(f"Listening to {chn_url} on {txtchn}.")
     while True:
         try:
-            vid_url, title = await wait_for_stream(chn_url)
+            vid_url, title, start_time = await wait_for_stream(chn_url)
         except ValueError as e:
             logger.error(str(e))
             return e
@@ -31,7 +31,7 @@ async def listen(bot, txtchn:TextChannel, chn_url):
             return e
         
         try:
-            await create_stream(bot, txtchn, vid_url, title)
+            await create_stream(bot, txtchn, vid_url, title, start_time=start_time)
         except RateLimited:          
                 logger.critical(f"Waiting {2 ** ratelimit} minutes).")
                 await asyncio.sleep(2 ** ratelimit * 60)
@@ -43,7 +43,7 @@ async def listen(bot, txtchn:TextChannel, chn_url):
 
 
 ratelimit = 0
-async def create_stream(bot, txtchn, vid_url, title):
+async def create_stream(bot, txtchn, vid_url, title, start_time):
     """Creates and starts (if necessary) 
     and registers a stream to a text channel,
     cleans up and returns when the stream ends."""
@@ -55,7 +55,7 @@ async def create_stream(bot, txtchn, vid_url, title):
                 stream = existing_stream
                 break
         if not stream:
-            stream = StreamDownload(vid_url, title)
+            stream = StreamDownload(vid_url, title, start_time=start_time)
             try:
                 os.remove(bot.streams[txtchn.id].filepath)
             except (FileNotFoundError, KeyError):

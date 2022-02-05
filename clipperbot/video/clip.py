@@ -14,7 +14,7 @@ logger = logging.getLogger("clipping.clip")
 async def clip(stream_filepath:str, title:str,
         from_time:dt.timedelta, duration:dt.timedelta,
         stream_start_time:dt.datetime, audio_only=False, relative_start=None,
-        clip_dir = CLIP_DIR, ffmpeg=FFMPEG):
+        website="youtube", clip_dir = CLIP_DIR, ffmpeg=FFMPEG):
     """Creates a clip file from `stream_filepath`.
     Returns path of the clip file.
     """
@@ -30,9 +30,12 @@ async def clip(stream_filepath:str, title:str,
         millisecs=False)
     clip_filepath = os.path.join(clip_dir,
         f"{title} {time_stamp}_{duration.total_seconds():.2f}{extension}")
+    
+    quick_seek = website == "youtube"
 
     await cut_video(stream_filepath, from_time, duration,
-        clip_filepath, audio_only, ffmpeg, relative_start=relative_start)
+        clip_filepath, audio_only, ffmpeg, relative_start=relative_start,
+        quickseek=quick_seek)
 
     clean_space(CLIP_DIR, MAX_CLIP_STORAGE)
 
@@ -41,7 +44,8 @@ async def clip(stream_filepath:str, title:str,
 
 async def cut_video(stream_filepath:str,
         from_time:dt.timedelta, duration:dt.timedelta,
-        output_path:str, audio_only=False, ffmpeg=FFMPEG, relative_start=None):
+        output_path:str, audio_only=False, ffmpeg=FFMPEG, relative_start=None,
+        quickseek=False):
     """ Cuts a video file.
     """
     logger.debug(f"Creating clip file from {stream_filepath} to {output_path}.\n"
@@ -69,15 +73,26 @@ async def cut_video(stream_filepath:str,
             delayed_start = relative_start.total_seconds() - 1
             start_arg = f"-sseof {delayed_start:.3f}"
 
-        command = (f"{ffmpeg} -y -hide_banner\
-            {start_arg}\
-            -t {duration.total_seconds():.3f}\
-            -i {shlex.quote(stream_filepath)}\
-            -acodec copy\
-            {'-vn' if audio_only else '-vcodec copy'}\
-            -movflags faststart\
-            {shlex.quote(output_path)}"
-        )
+        if quickseek or relative_start is not None:
+            command = (f"{ffmpeg} -y -hide_banner\
+                {start_arg}\
+                -t {duration.total_seconds():.3f}\
+                -i {shlex.quote(stream_filepath)}\
+                -acodec copy\
+                {'-vn' if audio_only else '-vcodec copy'}\
+                -movflags faststart\
+                {shlex.quote(output_path)}"
+            )
+        else:
+            command = (f"{ffmpeg} -y -hide_banner\
+                -i {shlex.quote(stream_filepath)}\
+                -acodec copy\
+                {'-vn' if audio_only else '-vcodec copy'}\
+                -movflags faststart\
+                {start_arg}\
+                -t {duration.total_seconds():.3f}\
+                {shlex.quote(output_path)}"
+            )
 
         logger.info(f"Clip cmd: {shlex.join(shlex.split(command))}")
 
@@ -123,9 +138,10 @@ async def create_thumbnail(video_fpath:str, ffmpeg=FFMPEG):
     if return_code == 0:
         return thumbnail_fpath
     else:
-        logger.error(f"Thumbnail creation of {video_fpath} failed with"
+        logger.error(f"Thumbnail process for {video_fpath} failed with"
             f" {return_code}.")
         if os.path.isfile(thumbnail_fpath):
+            logger.info(f"However, the file exists.")
             return thumbnail_fpath
         else:
             return None
@@ -170,6 +186,12 @@ async def create_screenshot(stream_filepath:str, pos, relative_start:dt.timedelt
     if return_code == 0:
         return ffmpeg_out
     else:
-        logger.error(f"Thumbnail creation of {stream_filepath} failed with"
+        logger.error(f"Screenshot process for {stream_filepath} failed with"
             f" {return_code}.")
+        
+        PNG_SIZE_TRESHOLD = 10_000
+        if len(ffmpeg_out) >= PNG_SIZE_TRESHOLD:
+            logger.info("However, some data was output, trying to continue.")
+            return ffmpeg_out
+
         raise Exception("Screenshot not created.")

@@ -249,7 +249,8 @@ Also consider deleting the original clip if you don't need it.""")
                 duration,
                 stream.start_time,
                 audio_only=audio_only,
-                relative_start=relative_start
+                relative_start=relative_start,
+                website=stream.website
             )
         except KeyError:
             await ctx.reply("No captured stream in"
@@ -292,7 +293,8 @@ Also consider deleting the original clip if you don't need it.""")
                 duration - dt.timedelta(seconds=1),
                 stream.start_time,
                 audio_only=audio_only,
-                relative_start=new_relative_start 
+                relative_start=new_relative_start,
+                website=stream.website
             )
             short_clip_size = os.path.getsize(short_clip_fpath) 
             if (short_clip_size <= ctx.guild.filesize_limit):
