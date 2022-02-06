@@ -1,6 +1,6 @@
 # Clipper Bot
 
-Discord bot that clips on-going youtube livestreams.
+Discord bot that clips on-going youtube and twitch livestreams.
 
 Clips are un-reencoded and at full resolution.
 
