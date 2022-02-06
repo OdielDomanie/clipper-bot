@@ -70,6 +70,7 @@ async def create_stream(bot, txtchn, vid_url, title, start_time):
             raise
         else:
             ratelimit -= 1  # arbitrary, need more info on yt rate limit behavior.
+            ratelimit = max(ratelimit, 0)
     except Exception as e:
         logger.exception(e)
         try: await stream_stopped_msg(txtchn, title, vid_url, e)
