@@ -94,7 +94,7 @@ class StreamDownload:
                     except Exception as exc:
                         self.logger.exception(exc)
 
-            await self.wait_stop_task
+            await asyncio.shield(self.wait_stop_task)
 
         except BaseException as e:
             if not isinstance(e, asyncio.CancelledError):
@@ -103,6 +103,12 @@ class StreamDownload:
                 async with self._proc_lock:
                     self.start_count -= 1
                     if self.start_count == 0:
+                        
+                        try:
+                            self.wait_stop_task.cancel()
+                        except Exception as e:
+                            logging.exception(e)
+                        
                         await self.stop_process()
             raise e
     
