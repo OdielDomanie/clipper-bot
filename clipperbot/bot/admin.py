@@ -135,7 +135,7 @@ False by default. Valid arguments: `true`, `false`"
         try:
             vid_url, website = sanitize_vid_url(vid_url)
         except ValueError:
-            await ctx.reply("The url is not supported.")
+            await ctx.reply("Only `youtube.com` or `twitch.tv` urls are supported.")
             return
 
         try:
