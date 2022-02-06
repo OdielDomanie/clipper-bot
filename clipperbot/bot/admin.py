@@ -171,6 +171,11 @@ False by default. Valid arguments: `true`, `false`"
 
             if old_chn is not None:
                 async with self.register_lock:
+                    try:
+                        self._unregister(ctx.channel)
+                    except KeyError:
+                        pass
+                    
                     await self._register(ctx, old_chn)
 
     async def _register(self, ctx, channel_url):
@@ -185,10 +190,16 @@ False by default. Valid arguments: `true`, `false`"
         if txtchn in self.bot.listens:
             listen_task = self.bot.listens[txtchn]
             listen_task.cancel()
-            try:
-                os.remove(self.bot.streams[txtchn.id].filepath)
-            except (FileNotFoundError, KeyError):
-                pass
+            
+            if txtchn in self.bot.streams\
+                and self.bot.active_files.count(self.bot.streams[txtchn].filepath) <= 1:
+                try:
+                    os.remove(self.bot.streams[txtchn].filepath)
+                except (FileNotFoundError, KeyError):
+                    try:
+                        os.remove(self.bot.streams[txtchn].filepath + ".part")
+                    except FileNotFoundError:
+                        pass
             del self.bot.listens[txtchn]
         
         chn_url = self.bot.channel_mapping[txtchn.id]

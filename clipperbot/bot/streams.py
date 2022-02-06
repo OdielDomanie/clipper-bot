@@ -70,6 +70,7 @@ async def create_stream(bot, txtchn, vid_url, title, start_time):
             raise
         else:
             ratelimit -= 1  # arbitrary, need more info on yt rate limit behavior.
+            ratelimit = max(ratelimit, 0)
     except Exception as e:
         logger.exception(e)
         try: await stream_stopped_msg(txtchn, title, vid_url, e)
@@ -79,25 +80,16 @@ async def create_stream(bot, txtchn, vid_url, title, start_time):
         try: await stream_stopped_msg(txtchn, title, vid_url)
         except Exception: pass
     finally:
-        try:
-            if stream.proc and stream.proc.returncode is None:
-                await stream.stop_process()
-        except AttributeError:
-            pass
 
         try: bot.active_files.remove(stream.filepath)
         except Exception: pass
 
-        # try: del bot.streams[txtchn]
-        # except KeyError: pass
-
-
 
 # Prevent spamming in the case of a bug, as these messages can be sent
 # without user prompt.
-# The constants can be replaced by configs.
+# The constants should be replaced by configs.
 RT_TIME = dt.timedelta(hours=8)
-RT_REQS = 3
+RT_REQS = 5
 auto_msg_ratelimits = {}  # {channel_id: RateLimit}
 async def stream_started_msg(txtchn:TextChannel, title, vid_url):
     logger.info(f"Stream {title} ({vid_url}) started at"

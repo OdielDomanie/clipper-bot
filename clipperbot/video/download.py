@@ -12,6 +12,7 @@ from urllib import parse
 import dateutil.parser
 import youtube_dl as ytdl
 import aiohttp
+import psutil
 from .. import DOWNLOAD_DIR, YTDL_EXEC, POLL_INTERVAL
 
 
@@ -94,7 +95,7 @@ class StreamDownload:
                     except Exception as exc:
                         self.logger.exception(exc)
 
-            await self.wait_stop_task
+            await asyncio.shield(self.wait_stop_task)
 
         except BaseException as e:
             if not isinstance(e, asyncio.CancelledError):
@@ -103,6 +104,12 @@ class StreamDownload:
                 async with self._proc_lock:
                     self.start_count -= 1
                     if self.start_count == 0:
+                        
+                        try:
+                            self.wait_stop_task.cancel()
+                        except Exception as e:
+                            logging.exception(e)
+                        
                         await self.stop_process()
             raise e
     
@@ -191,7 +198,20 @@ class StreamDownload:
                 f" with code {self.proc.returncode}")
         else:
             self.logger.debug("Terminating ytdl process.")
+
+            # get the child ffmpeg process
+            yt_dl = psutil.Process(self.proc.pid)
+            yt_dl_child = yt_dl.children()[0]
+            
+            # This may not end the child
             self.proc.terminate()
+
+            # Kill the child ffmpeg
+            try:
+                yt_dl_child.kill()
+            except Exception as e:
+                self.logger.exception(e)
+
             try:
                 await asyncio.wait_for(asyncio.create_task(self.proc.wait()),
                     WAIT_TIME)
