@@ -255,7 +255,7 @@ async def wait_for_stream(channel_url:str, poll_interval=POLL_INTERVAL):
             logger.debug(f"{channel_url} cache expired or none.")
             while True:
                 logger.debug(f"Fetching for live stream of {channel_url}")
-                if "youtube.com/" in channel_url:
+                if "youtube.com/" in channel_url or "twitch.com/" in channel_url:
                     try:
                         metadata_dict = await _fetch_yt_chn_stream(channel_url)
                     except RateLimited:
@@ -352,6 +352,9 @@ def fetch_yt_metadata(url:str):
     ytdl_logger.addHandler(logging.NullHandler())  # f yt-dl logs
 
     # options referenced from https://github.com/sparanoid/live-dl/blob/3e76be969d94747aa5d9f83b34bc22e14e0929be/live-dl
+    #
+    # Problem with cookies in current implementation: 
+    # https://github.com/ytdl-org/youtube-dl/issues/22613
     ydl_opts = {
         "logger" : ytdl_logger,
         "noplaylist" : True,
@@ -359,9 +362,12 @@ def fetch_yt_metadata(url:str):
         "skip_download": True,
         "forcejson": True,
         "no_color": True,
-        "referer": 'https://www.youtube.com/feed/subscriptions',
         "cookiefile": "cookies.txt",
     }
+
+    if "youtube.com/" in url:
+        ydl_opts["referer"] = "https://www.youtube.com/feed/subscriptions"
+
     try:
         with ytdl.YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(url, download=False)
