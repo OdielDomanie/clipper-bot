@@ -43,7 +43,7 @@ class ClipBot(commands.Bot):
 
         # {text_chn : channel_url}
         self.channel_mapping = PersistentDict(database, "channels", int, str)
-        self.listens = {}  # {text_chn : listen_tasks}
+        self.listens:dict[discord.TextChannel, asyncio.Task] = {}
         self.ready = False
 
         self.check(lambda ctx: self.ready)
