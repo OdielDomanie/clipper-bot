@@ -258,7 +258,7 @@ async def wait_for_stream(channel_url:str, poll_interval=POLL_INTERVAL):
             logger.debug(f"{channel_url} cache expired or none.")
             while True:
                 logger.debug(f"Fetching for live stream of {channel_url}")
-                if "youtube.com/" in channel_url or "twitch.com/" in channel_url:
+                if "youtube.com/" in channel_url or "twitch.tv/" in channel_url:
                     try:
                         metadata_dict = await _fetch_yt_chn_stream(channel_url)
                     except RateLimited:
@@ -266,7 +266,7 @@ async def wait_for_stream(channel_url:str, poll_interval=POLL_INTERVAL):
                         continue
                 else:
                     raise ValueError(f"{channel_url} url is"
-                        "not implemented.")
+                        " not implemented.")
 
                 if metadata_dict is not None:
                     
