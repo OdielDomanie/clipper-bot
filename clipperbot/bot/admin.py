@@ -212,11 +212,9 @@ False by default. Valid arguments: `true`, `false`"
 
             del self.bot.listens[txtchn]
 
-        try:
-            del self.bot.channel_mapping[txtchn.id]
-        except KeyError:
-            pass
         chn_url = self.bot.channel_mapping[txtchn.id]
+        del self.bot.channel_mapping[txtchn.id]
+
         return chn_url
     
     # @commands.command
