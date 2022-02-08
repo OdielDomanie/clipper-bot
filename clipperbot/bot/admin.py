@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from . import ClipBot
 
+
 class Admin(commands.Cog):
     """Available with \"Manage Server\" permission, the same permission required to add the bot.
 Use `give_permission` command to allow a role to use these commands as well."""
@@ -128,6 +129,9 @@ False by default. Valid arguments: `true`, `false`"
             except KeyError:
                 await ctx.send(f"No channel registered on {ctx.channel.name}.")
     
+    stream_cancels:dict[str, bool] = {}
+    stream_id_counter = 0
+
     @commands.command()
     async def stream(self, ctx, vid_url:str):
         "Start a one-time capture of a stream from a direct url."
@@ -138,48 +142,44 @@ False by default. Valid arguments: `true`, `false`"
             await ctx.reply("Only `youtube.com` or `twitch.tv` urls are supported.")
             return
 
+        old_chn = None
+        try: old_chn = self._unregister(ctx.channel)
+        except KeyError: pass
+
+        assert ctx.channel not in self.bot.listens
+        stream_task = asyncio.create_task(
+            streams.one_time_listen(self.bot, ctx.channel, vid_url),
+            name= "one_time " + str(Admin.stream_id_counter)
+        )
+        Admin.stream_id_counter += 1
+        self.bot.listens[ctx.channel] = stream_task
+
         try:
-            if website == 'youtube' or website == 'twitch':
-                info_dict = fetch_yt_metadata(vid_url)
-
-                if info_dict is None or not info_dict.get("is_live"):
-                    await ctx.reply("The video is not live.")
-                    return
-
-                title = info_dict["title"][:-17]
-
-                if start_time := info_dict.get("timestamp"):
-                        start_time = dt.datetime.fromtimestamp(start_time, timezone.utc)
-            else:
-                raise NotImplementedError
-
-        except KeyError:
-            await ctx.reply("Error with the url.")
-        except RateLimited:
-            await ctx.reply("Bot is rate limited :(")
-        else:
-            old_chn = None
-            try: old_chn = self._unregister(ctx.channel)
-            except KeyError: pass
-
-            stream_task = asyncio.create_task(
-                streams.create_stream(self.bot, ctx.channel, vid_url,title, start_time)
-            )
-            self.bot.listens[ctx.channel] = stream_task
-    
             await stream_task
-
+        
+        except RateLimited:
+            await ctx.send(f"Ratelimited by {website}! :(")
+        except ValueError:
+            await ctx.reply("Invalid url.")
+        
+        finally:
+            
             if old_chn is not None:
-                async with self.register_lock:
-                    try:
-                        self._unregister(ctx.channel)
-                    except KeyError:
-                        pass
-                    
-                    await self._register(ctx, old_chn)
+                try:
+                    self._unregister(ctx.channel)
+                except KeyError:
+                    pass                    
+                self._register_wo_sanitize(ctx, old_chn)
 
     async def _register(self, ctx, channel_url):
         self.bot.channel_mapping[ctx.channel.id] = await sanitize_chnurl(channel_url)
+        assert ctx.channel not in self.bot.listens
+        listen_task = asyncio.create_task(
+                    streams.listen(self.bot, ctx.channel, channel_url))
+        self.bot.listens[ctx.channel] = listen_task
+    
+    def _register_wo_sanitize(self, ctx, channel_url):
+        assert ctx.channel not in self.bot.listens
         listen_task = asyncio.create_task(
                     streams.listen(self.bot, ctx.channel, channel_url))
         self.bot.listens[ctx.channel] = listen_task
@@ -189,21 +189,34 @@ False by default. Valid arguments: `true`, `false`"
         self.bot.logger.info(f"Unregistering {txtchn.name}.")
         if txtchn in self.bot.listens:
             listen_task = self.bot.listens[txtchn]
-            listen_task.cancel()
+
+            task_name = listen_task.get_name()
+            if task_name.split()[0] == "one_time":
+                is_cancelled = Admin.stream_cancels.setdefault(task_name.split()[1], False)
+                if not is_cancelled:
+                    listen_task.cancel()
+                    Admin.stream_cancels[task_name.split()[1]] = True
+            else:
+                listen_task.cancel()
             
-            if txtchn in self.bot.streams\
-                and self.bot.active_files.count(self.bot.streams[txtchn].filepath) <= 1:
-                try:
-                    os.remove(self.bot.streams[txtchn].filepath)
-                except (FileNotFoundError, KeyError):
+            if txtchn in self.bot.streams:
+                if self.bot.active_files.count(self.bot.streams[txtchn].filepath) <= 1:
                     try:
-                        os.remove(self.bot.streams[txtchn].filepath + ".part")
-                    except FileNotFoundError:
-                        pass
+                        os.remove(self.bot.streams[txtchn].filepath)
+                    except (FileNotFoundError, KeyError):
+                        try:
+                            os.remove(self.bot.streams[txtchn].filepath + ".part")
+                        except FileNotFoundError:
+                            pass
+                    del self.bot.streams[txtchn]
+
             del self.bot.listens[txtchn]
-        
+
+        try:
+            del self.bot.channel_mapping[txtchn.id]
+        except KeyError:
+            pass
         chn_url = self.bot.channel_mapping[txtchn.id]
-        del self.bot.channel_mapping[txtchn.id]
         return chn_url
     
     # @commands.command

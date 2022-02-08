@@ -201,7 +201,10 @@ class StreamDownload:
 
             # get the child ffmpeg process
             yt_dl = psutil.Process(self.proc.pid)
-            yt_dl_child = yt_dl.children()[0]
+            try:
+                yt_dl_child = yt_dl.children()[0]
+            except IndexError:
+                pass
             
             # This may not end the child
             self.proc.terminate()
@@ -262,9 +265,19 @@ async def wait_for_stream(channel_url:str, poll_interval=POLL_INTERVAL):
                         await asyncio.sleep(3600)
                         continue
                 else:
-                    raise ValueError(f"{channel_url} channel url is"
+                    raise ValueError(f"{channel_url} url is"
                         "not implemented.")
+
                 if metadata_dict is not None:
+                    
+                    if not metadata_dict.get("is_live"):
+                        raise ValueError("Not a livestream.")
+                    
+                    # Unhandled edge-case:
+                    # The stream can be live and then end within the time window
+                    # until the youtube-dl is called, causing it to download a 
+                    # static stream. This can cause a rate-limited response.
+
                     url = metadata_dict["webpage_url"]
                     title = metadata_dict["title"][:-17]
                     
