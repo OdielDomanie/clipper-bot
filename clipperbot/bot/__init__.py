@@ -39,7 +39,7 @@ class ClipBot(commands.Bot):
         
         # {guild_id: _}
         self.guild_whitelist = PersistentDict(database, "guild_whitelist",
-            int, str) 
+            int, str, cache_duration=60) 
 
         # {text_chn : channel_url}
         self.channel_mapping = PersistentDict(database, "channels", int, str)

@@ -5,6 +5,7 @@ from typing import Any, Callable
 import functools
 import logging
 import datetime as dt
+import time
 import collections
 from collections.abc import MutableMapping
 import os
@@ -16,16 +17,20 @@ logger = logging.getLogger("clipping.bot")
 class PersistentDict(MutableMapping):
     """Dictionary that loads from database upon initilization,
     and writes to it with every set operation.
+    The cache goes stale in cache_duration seconds, if not None.
     """
     def __init__(self, database:str, table_name:str,
-            str_to_key, str_to_val:Callable[[str],Any]):
+            str_to_key, str_to_val:Callable[[str],Any],
+            cache_duration:float=None):
         self.database = database
         self.table_name = table_name
         self.str_to_key = str_to_key
         self.str_to_val = str_to_val
+        self.cache_duration = cache_duration
 
-        self.store = {}
+        self._store = {}
         self._cache_valid = False
+        self._last_cache = float("-inf")
 
         self._create_table()    
 
@@ -48,13 +53,20 @@ class PersistentDict(MutableMapping):
         store = {}
         for key, value in tuple_results:
             store[self.str_to_key(key)] = self.str_to_val(value)
-        self.store = store
+        self._store = store
         self._cache_valid = True
+        self._last_cache = time.monotonic()
+    
+    def _calc_cache_staleness(self):
+        if (self.cache_duration is not None
+            and time.monotonic() - self._last_cache > self.cache_duration):
+            self._cache_valid = False
 
     def __getitem__(self, key):
+        self._calc_cache_staleness()
         if not self._cache_valid:
             self._populate_from_sql()
-        return self.store[key]
+        return self._store[key]
 
     def __setitem__(self, key, value):
         # test validity
@@ -69,7 +81,7 @@ class PersistentDict(MutableMapping):
         )
         con.commit()
         con.close()
-        self.store[key] = value
+        self._store[key] = value
 
     def __delitem__(self, key):
         con = sqlite3.connect(self.database)
@@ -80,19 +92,21 @@ class PersistentDict(MutableMapping):
         con.commit()
         con.close()
         try:
-            del self.store[key]
+            del self._store[key]
         except KeyError:
             pass
 
     def __iter__(self):
+        self._calc_cache_staleness()
         if not self._cache_valid:
             self._populate_from_sql()
-        return iter(self.store)
+        return iter(self._store)
     
     def __len__(self):
+        self._calc_cache_staleness()
         if not self._cache_valid:
             self._populate_from_sql()
-        return len(self.store)
+        return len(self._store)
 
 
 async def manserv_or_owner(ctx):
