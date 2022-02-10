@@ -83,12 +83,12 @@ If the clip file is too big, a direct download link is posted instead, if enable
             else:
                 raise commands.BadArgument()
 
-        if duration > self.bot.max_clip_duration:
+        audio_only = ctx.invoked_with in ["audio", "a"]
+
+        if not audio_only and duration > self.bot.max_clip_duration:
             # Duration more than allowed.
             # Maybe notify the user?
             return
-
-        audio_only = ctx.invoked_with in ["audio", "a"]
 
         await self._create_n_send_clip(
             ctx, from_time, duration, audio_only, relative_start=relative_start
