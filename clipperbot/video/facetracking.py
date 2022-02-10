@@ -1,9 +1,12 @@
+import os, pathlib
 import cv2
 import numpy as np
 
 # https://github.com/nagadomi/lbpcascade_animeface
 
+root_path = pathlib.Path(__file__).parents[2]
 CASCADE_FPATH = "facecascades/lbpcascade_animeface.xml"
+CASCADE_FPATH = str(root_path.joinpath(CASCADE_FPATH))
 
 cascade = cv2.CascadeClassifier(CASCADE_FPATH)
 
