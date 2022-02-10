@@ -24,6 +24,11 @@ if TYPE_CHECKING:
 from .. import POLL_INTERVAL
 
 
+# This makes this module a discord.py extension
+def setup(bot:ClipBot):
+    bot.add_cog(Clipping(bot))
+
+
 def to_timedelta(s:str):    
     split = s.split(":")
     time_dict = {}

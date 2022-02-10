@@ -56,7 +56,7 @@ class ClipBot(commands.Bot):
     
         self.add_command(ClipBot.info)
         self.add_cog(DeletableMessages(self, 1000))
-        self.add_cog(Clipping(self))
+        self.load_extension(".user", package="clipperbot.bot")
         self.add_cog(Admin(self))
 
         self.help_command = commands.DefaultHelpCommand(
