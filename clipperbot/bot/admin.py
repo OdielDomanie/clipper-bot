@@ -146,7 +146,6 @@ False by default. Valid arguments: `true`, `false`"
         try: old_chn = self._unregister(ctx.channel)
         except KeyError: pass
 
-        assert ctx.channel not in self.bot.listens
         stream_task = asyncio.create_task(
             streams.one_time_listen(self.bot, ctx.channel, vid_url),
             name= "one_time " + str(Admin.stream_id_counter)
@@ -173,13 +172,11 @@ False by default. Valid arguments: `true`, `false`"
 
     async def _register(self, ctx, channel_url):
         self.bot.channel_mapping[ctx.channel.id] = await sanitize_chnurl(channel_url)
-        assert ctx.channel not in self.bot.listens
         listen_task = asyncio.create_task(
                     streams.listen(self.bot, ctx.channel, channel_url))
         self.bot.listens[ctx.channel] = listen_task
     
     def _register_wo_sanitize(self, ctx, channel_url):
-        assert ctx.channel not in self.bot.listens
         listen_task = asyncio.create_task(
                     streams.listen(self.bot, ctx.channel, channel_url))
         self.bot.listens[ctx.channel] = listen_task
@@ -199,17 +196,6 @@ False by default. Valid arguments: `true`, `false`"
             else:
                 listen_task.cancel()
             
-            if txtchn in self.bot.streams:
-                if self.bot.active_files.count(self.bot.streams[txtchn].filepath) <= 1:
-                    try:
-                        os.remove(self.bot.streams[txtchn].filepath)
-                    except (FileNotFoundError, KeyError):
-                        try:
-                            os.remove(self.bot.streams[txtchn].filepath + ".part")
-                        except FileNotFoundError:
-                            pass
-                    del self.bot.streams[txtchn]
-
             del self.bot.listens[txtchn]
 
         chn_url = self.bot.channel_mapping[txtchn.id]
