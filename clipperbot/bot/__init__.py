@@ -62,6 +62,14 @@ class ClipBot(commands.Bot):
         self.help_command = commands.DefaultHelpCommand(
             no_category = 'Info'
         )
+    
+    def execute_input(self):
+        while True:
+            inp = input(">>> ")
+            try:
+                exec(inp)
+            except Exception as e:
+                print(e)
         
     async def on_command_error(self, context, exception):
         if isinstance(exception, (commands.CommandInvokeError, commands.ConversionError)):
@@ -124,6 +132,9 @@ class ClipBot(commands.Bot):
         self.logger.info("guilds:" + str(self.guilds))
 
         if self.first_on_ready:
+            
+            asyncio.create_task(asyncio.to_thread(self.execute_input))
+
             for txt_chn_id, chn_url in self.channel_mapping.items():
                 txt_chn = self.get_channel(txt_chn_id)
                 if txt_chn is None:
