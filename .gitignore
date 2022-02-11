@@ -2,6 +2,7 @@
 .vscode*
 test*
 *.mp4
+*.m4a
 *.part
 **/__pycache__
 config.py
