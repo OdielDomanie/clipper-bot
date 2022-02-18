@@ -17,6 +17,7 @@ from ..video.download import StreamDownload
 from ..utils import timedelta_to_str, hour_floor_diff
 from ..webserver import serveclips
 from ..video import facetracking
+from . import help_strings
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from . import ClipBot
@@ -56,14 +57,11 @@ class Clipping(commands.Cog):
         self.bot = bot
         self.sent_clips: collections.deque[Clip] = collections.deque(maxlen=1000)
 
+        self.description = help_strings.clipping_cog_description
 
-    clip_help =(
-f"""Clip relative to the current time. Use `a` for audio only.
-If the clip file is too big, a direct download link is posted instead, if enabled for the server. The ddl is only temporary, so please don't link to it.""")
     clip_brief = "Clip!"
-
     @commands.group(aliases=["c", "audio", "a"], invoke_without_command=True,
-        help=clip_help, brief = clip_brief)
+        help=help_strings.clip_command_description, brief = clip_brief)
     async def clip(self, ctx,
             relative_start = "...",
             duration = "...", /):
@@ -159,12 +157,9 @@ Valid position arguments: `everyone`, `{"`, `".join(CROP_STR.keys())}`""")
             raise
         return png
 
-
-    clip_s_help = (
-f"""Clip with timestamp relative to the start of the stream.""")
     clip_s_brief = "Clip relative to stream start."
-
-    @clip.command(name="fromstart", aliases=["s"], help = clip_s_help, brief = clip_s_brief)
+    @clip.command(name="fromstart", aliases=["s"], help=help_strings.fromstart_subcommand_description,
+        brief = clip_s_brief)
     async def s(self, ctx, from_start:to_timedelta,
         duration = "..."):
         if duration == "...":
@@ -200,12 +195,8 @@ Assume the stream started at the hour mark.""")
         audio_only = ctx.invoked_parents[0] in ["audio", "a"]
         await self._create_n_send_clip(ctx, from_time, duration, audio_only)
 
-    adj_help = (
-"""Reply to a clip to post it again with modified start point and duration.
-Also consider deleting the original clip if you don't need it.""")
     clip_sh_brief = "Reply to a clip to adjust it."
-
-    @commands.command(aliases=["adj"], help=adj_help, brief=clip_sh_brief)
+    @commands.command(aliases=["adj"], help=help_strings.adjust_command_description, brief=clip_sh_brief)
     async def adjust(self, ctx, 
             start_adjust:to_timedelta,
             duration_adjust:str="0"):
