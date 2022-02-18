@@ -90,10 +90,9 @@ class StreamDownload:
 
                 if self.website == "youtube":
                     video_id = self.vid_url.split("=")[-1]
-                    try:
-                        await self.get_holodex_start(video_id)
-                    except Exception as exc:
-                        self.logger.exception(exc)
+                    get_actstart_task = asyncio.create_task(
+                        self.get_holodex_start(video_id)
+                    )
 
             await asyncio.shield(self.wait_stop_task)
 
@@ -112,19 +111,29 @@ class StreamDownload:
                         
                         await self.stop_process()
             raise e
+        finally:
+            if self.website == "youtube":
+                get_actstart_task.cancel()
     
     actual_start_cache = {}  # Slow memory leak
     async def get_holodex_start(self, video_id):
+        """Waits 3 minutes, then fetches `start_actual` from holodex.net
+        and writes it to `self.actual_start`."""
+        await asyncio.sleep(3 * 60)
         if video_id not in StreamDownload.actual_start_cache:
-            async with aiohttp.ClientSession() as session:
-                base_url = "https://holodex.net/api/v2/videos/"
-                url = parse.urljoin(base_url, video_id)
-                async with session.get(url) as response:
-                    resp = await response.json()
-                    time_str = resp["start_actual"]
-                    StreamDownload.actual_start_cache[video_id] = (
-                        dateutil.parser.isoparse(time_str)
-                    )
+            try:
+                self.logger.info("Fetching data from holodex.")
+                async with aiohttp.ClientSession() as session:
+                    base_url = "https://holodex.net/api/v2/videos/"
+                    url = parse.urljoin(base_url, video_id)
+                    async with session.get(url) as response:
+                        resp = await response.json()
+                        time_str = resp["start_actual"]
+                        StreamDownload.actual_start_cache[video_id] = (
+                            dateutil.parser.isoparse(time_str)
+                        )
+            except Exception as e:
+                self.logger.exception(e)
         self.actual_start = StreamDownload.actual_start_cache[video_id]
 
     async def _download(self):
