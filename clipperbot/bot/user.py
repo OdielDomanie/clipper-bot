@@ -1,16 +1,12 @@
 from __future__ import annotations
-import asyncio
 import collections
 import dataclasses
 import datetime as dt
 import os
 import os.path
-import typing
 import io
 import discord
 from discord.ext import commands
-from .. import utils
-from . import streams
 from ..video import clip
 from ..video.clip import CROP_STR
 from ..video.download import StreamDownload
@@ -21,8 +17,6 @@ from . import help_strings
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from . import ClipBot
-
-from .. import POLL_INTERVAL
 
 
 # This makes this module a discord.py extension

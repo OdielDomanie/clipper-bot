@@ -1,4 +1,4 @@
-import os, pathlib
+import pathlib
 import cv2
 import numpy as np
 

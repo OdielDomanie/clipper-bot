@@ -1,7 +1,4 @@
 import asyncio
-import os
-import datetime as dt
-from datetime import timezone
 from discord.ext import commands
 from .. import utils
 from . import streams
