@@ -5,8 +5,6 @@ from discord.ext import commands
 from ..utils import PersistentDict
 from ..video.download import StreamDownload
 from . import streams
-from .user import Clipping
-from .admin import Admin
 from .deletables import DeletableMessages
 from .help_strings import help_description
 
@@ -57,7 +55,7 @@ class ClipBot(commands.Bot):
         self.add_command(ClipBot.info)
         self.add_cog(DeletableMessages(self, 1000))
         self.load_extension(".user", package="clipperbot.bot")
-        self.add_cog(Admin(self))
+        self.load_extension(".admin", package="clipperbot.bot")
 
         self.help_command = commands.DefaultHelpCommand(
             no_category = 'Info'

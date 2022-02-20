@@ -9,6 +9,11 @@ if TYPE_CHECKING:
     from . import ClipBot
 
 
+# This makes this module a discord.py extension
+def setup(bot:"ClipBot"):
+    bot.add_cog(Admin(bot))
+
+
 class Admin(commands.Cog):
     """Available with \"Manage Server\" permission, the same permission required to add the bot.
 Use `give_permission` command to allow a role to use these commands as well."""
