@@ -238,6 +238,8 @@ Assume the stream started at the hour mark.""")
             duration:dt.timedelta, audio_only=False, relative_start=None):
         try:
             stream = self.bot.streams[ctx.channel]
+            if stream.website == "twspace":
+                audio_only = True
             clip_fpath = await clip.clip(
                 stream.filepath,
                 stream.title,
@@ -246,7 +248,8 @@ Assume the stream started at the hour mark.""")
                 stream.start_time,
                 audio_only=audio_only,
                 relative_start=relative_start,
-                website=stream.website
+                website=stream.website,
+                tempdir=stream.tempdir
             )
         except KeyError:
             await ctx.reply("No captured stream in"
@@ -290,7 +293,8 @@ Assume the stream started at the hour mark.""")
                 stream.start_time,
                 audio_only=audio_only,
                 relative_start=new_relative_start,
-                website=stream.website
+                website=stream.website,
+                tempdir=stream.tempdir
             )
             short_clip_size = os.path.getsize(short_clip_fpath) 
             if (short_clip_size <= ctx.guild.filesize_limit):

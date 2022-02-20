@@ -139,7 +139,7 @@ False by default. Valid arguments: `true`, `false`"
         try:
             vid_url, website = sanitize_vid_url(vid_url)
         except ValueError:
-            await ctx.reply("Only `youtube.com` or `twitch.tv` urls are supported.")
+            await ctx.reply("Only `youtube.com` ,`twitch.tv` or `twitter.com/i/spaces/` urls are supported.")
             return
 
         old_chn = None

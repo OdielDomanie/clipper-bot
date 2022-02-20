@@ -4,7 +4,7 @@ import datetime as dt
 import os
 from discord import TextChannel
 from ..video.download import (StreamDownload, 
-    wait_for_stream, RateLimited)
+    wait_for_stream, RateLimited, sanitize_vid_url)
 from .. import utils
 from ..utils import clean_space
 
@@ -47,11 +47,14 @@ async def one_time_listen(bot, txtchn:TextChannel, vid_url):
     global ratelimit
     logger.info(f"One-time-listening to {vid_url} on {txtchn}.")
     try:
-        msg = await stream_will_start_msg(txtchn, vid_url)
-        vid_url, title, start_time = await wait_for_stream(vid_url)
-        
-        try: await msg.delete()
-        except Exception as e: logger.exception(e)
+        _, website = sanitize_vid_url(vid_url)
+        title = vid_url
+        start_time = dt.datetime.utcnow()
+        if website != "twspace":
+            msg = await stream_will_start_msg(txtchn, vid_url)
+            vid_url, title, start_time = await wait_for_stream(vid_url)
+            try: await msg.delete()
+            except Exception as e: logger.exception(e)
 
     except ValueError as e:
         logger.error(str(e))

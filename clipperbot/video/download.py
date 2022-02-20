@@ -4,6 +4,7 @@ import sys
 import asyncio
 import shlex
 import http
+import http.cookiejar
 import datetime as dt
 from datetime import timezone
 import time
@@ -13,6 +14,14 @@ import dateutil.parser
 import youtube_dl as ytdl
 import aiohttp
 import psutil
+try:
+    from twspace_dl.twspace_dl import TwspaceDL
+    from twspace_dl.format_info import FormatInfo
+except ImportError:
+    twspace_support = False
+else:
+    twspace_support = True
+
 from .. import DOWNLOAD_DIR, YTDL_EXEC, POLL_INTERVAL
 
 
@@ -34,8 +43,13 @@ def sanitize_vid_url(vid_url):
         website = "twitch"
         return vid_url, website
     
+    elif twspace_support and "twitter.com/" in vid_url:
+        website = "twspace"
+        vid_url = vid_url.split("?")[0].split("/peek")[0]
+        return vid_url, website
+    
     else:
-        raise ValueError("Only youtube.com or twitch.tv is supported.")
+        raise ValueError("Only youtube.com, twitch.tv or twitter spaces are supported.")
 
 
 class StreamDownload:
@@ -56,6 +70,7 @@ class StreamDownload:
         file_name = vid_url[-10:] + "_" + title
         file_name = file_name.replace("/", "_")
         self.filepath = f"{os.path.join(self.download_dir, file_name)}.mp4"
+        self.tempdir = None
         self.ytdl_exec = ytdl_exec
 
         self.logger = logging.getLogger("clipping.streams")
@@ -99,7 +114,9 @@ class StreamDownload:
         except BaseException as e:
             if not isinstance(e, asyncio.CancelledError):
                 self.logger.exception(e)
-            if self.proc and self.proc.returncode is None:
+            
+            if self.proc and (isinstance(self.proc, asyncio.Task)
+                                or self.proc.returncode is None):
                 async with self._proc_lock:
                     self.start_count -= 1
                     if self.start_count == 0:
@@ -109,7 +126,8 @@ class StreamDownload:
                         except Exception as e:
                             logging.exception(e)
                         
-                        await self.stop_process()
+                        if not isinstance(self.proc, asyncio.Task):
+                            await self.stop_process()
             raise e
         finally:
             if self.website == "youtube":
@@ -151,8 +169,15 @@ class StreamDownload:
         
             await self._yt_download()
         
+        elif "twspace" == self.website:
+
+            temp_dir, fpath, dl_task = twspace_download(self.download_dir, self.vid_url)
+            self.tempdir = temp_dir
+            self.filepath = fpath
+            self.proc = dl_task
+        
         else:
-            raise ValueError("Only youtube or twitch are supported.")
+            raise ValueError("Only youtube, twitch and twitter spaces are supported.")
 
     async def _yt_download(self):
         yt_proc = await _yt_process(self.ytdl_exec, self.vid_url, self.filepath)
@@ -182,22 +207,25 @@ class StreamDownload:
     
     async def _wait_stop(self):
         "Stop process when stream ends or the process hangs."
+        if isinstance(self.proc, asyncio.Task):
+            await self.proc
+        else:
         # Check if file size is increasing or if the file exists.
-        POLL_INTV = 20
-        file_size = 0
-        while True:
-            await asyncio.sleep(POLL_INTV)
-            try:
-                new_file_size = os.path.getsize(self.filepath + ".part")
-            except FileNotFoundError:
-                await self.stop_process()
-                break
-        
-            if new_file_size == file_size:
-                await self.stop_process()
-                break
-            else:
-                file_size = new_file_size
+            POLL_INTV = 20
+            file_size = 0
+            while True:
+                await asyncio.sleep(POLL_INTV)
+                try:
+                    new_file_size = os.path.getsize(self.filepath + ".part")
+                except FileNotFoundError:
+                    await self.stop_process()
+                    break
+            
+                if new_file_size == file_size:
+                    await self.stop_process()
+                    break
+                else:
+                    file_size = new_file_size
     
     async def  stop_process(self):
         "Tries to terminate the process. Returns the returncode."
@@ -236,7 +264,8 @@ class StreamDownload:
         return self.proc.returncode
     
     def __del__(self):
-        if self.proc and self.proc.returncode is None:
+        if self.proc and not isinstance(self.proc, asyncio.Task)\
+                and self.proc.returncode is None:
             self.logger.error("Process still running, on object deletion."
                 " Terminating.")
             self.proc.terminate()
@@ -500,3 +529,25 @@ async def _read_yt_error(stream:asyncio.StreamReader):
             break
         if "HTTP Error 429:" in line_str:
             raise RateLimited
+
+
+def twspace_download(download_dir, url:str):
+    "Returns a directory where the file might be, the final file destination, and the download task."
+    format_str = os.path.join(download_dir, FormatInfo.DEFAULT_FNAME_FORMAT)
+    space_dl = TwspaceDL.from_space_url(url, format_str, download_dir)
+    temp_dir = space_dl.tmpdir
+    fpath = space_dl.filename
+
+    dl_task = asyncio.create_task(_twspace_download_process(space_dl))
+
+    return temp_dir, fpath, dl_task
+
+async def _twspace_download_process(space_dl:TwspaceDL):
+    try:
+        await asyncio.to_thread(space_dl.download)
+    finally:
+        if space_dl.ffmpeg_pid is not None:
+            try:
+                ffmpeg_proc = psutil.Process(space_dl.ffmpeg_pid)
+                ffmpeg_proc.kill()
+            except: pass

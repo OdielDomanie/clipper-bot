@@ -11,10 +11,20 @@ from .. import CLIP_DIR, MAX_CLIP_STORAGE, FFMPEG
 logger = logging.getLogger("clipping.clip")
 
 
-async def clip(stream_filepath:str, title:str,
-        from_time:dt.timedelta, duration:dt.timedelta,
-        stream_start_time:dt.datetime, audio_only=False, relative_start=None,
-        website="youtube", clip_dir = CLIP_DIR, ffmpeg=FFMPEG):
+async def clip(
+    stream_filepath:str,
+    title:str,
+    from_time:dt.timedelta,
+    duration:dt.timedelta,
+    stream_start_time:dt.datetime,
+    audio_only=False,
+    relative_start=None,
+    website="youtube",
+    tempdir:str=None,
+    *,
+    clip_dir = CLIP_DIR,
+    ffmpeg=FFMPEG
+    ):
     """Creates a clip file from `stream_filepath`.
     Returns path of the clip file.
     """
@@ -31,34 +41,33 @@ async def clip(stream_filepath:str, title:str,
     clip_filepath = os.path.join(clip_dir,
         f"{title} {time_stamp}_{duration.total_seconds():.2f}{extension}")
     
-    quick_seek = website == "youtube"
+    quick_seek = website == "youtube" or website == "twspace"
 
     await cut_video(stream_filepath, from_time, duration,
         clip_filepath, audio_only, ffmpeg, relative_start=relative_start,
-        quickseek=quick_seek)
+        quickseek=quick_seek, tempdir=tempdir)
 
     clean_space(CLIP_DIR, MAX_CLIP_STORAGE)
 
     return clip_filepath
 
 
-async def cut_video(stream_filepath:str,
-        from_time:dt.timedelta, duration:dt.timedelta,
-        output_path:str, audio_only=False, ffmpeg=FFMPEG, relative_start=None,
-        quickseek=False):
+async def cut_video(
+    stream_filepath:str,
+    from_time:dt.timedelta,
+    duration:dt.timedelta,
+    output_path:str,
+    audio_only=False,
+    ffmpeg=FFMPEG,
+    relative_start=None,
+    quickseek=False,
+    tempdir=None):
     """ Cuts a video file.
     """
     logger.debug(f"Creating clip file from {stream_filepath} to {output_path}.\n"
         f"From: {str(from_time)} {'('+str(relative_start)+') ' if relative_start is not None else ''}for {str(duration)}")
 
-    # Check if the stream file has .part appended.
-    stream_filepath += ".part"
-    if not os.path.isfile(stream_filepath):
-        stream_filepath = stream_filepath.rsplit(".", maxsplit=1)[0]
-        if not os.path.isfile(stream_filepath):
-            logger.error(f"Clip could not be created:"
-                f" {stream_filepath} not found.")
-            raise FileNotFoundError
+    stream_filepath = find_stream_file(stream_filepath, tempdir)
 
     if not os.path.isfile(output_path):
         # Time argument before the -i for faster seeking,
@@ -115,6 +124,23 @@ async def cut_video(stream_filepath:str,
                 logger.error(f"However, clip file exists. Trying to continue on")
             else:
                 raise Exception("Clip not created.")
+
+
+def find_stream_file(fpath, tempdir=None):
+    fpath_part = fpath + ".part"
+    if os.path.isfile(fpath_part):
+        return fpath_part
+    elif os.path.isfile(fpath):
+        return fpath
+    elif os.path.isfile(fpath + ".m4a"):
+        return fpath + ".m4a"
+    elif tempdir is not None:        
+        for file in os.listdir(tempdir):
+            if file.endswith(".ts"):
+                return os.path.join(tempdir, file)
+    logger.error(f"Clip could not be created:"
+        f" {fpath} not found.")
+    raise FileNotFoundError
 
 
 async def create_thumbnail(video_fpath:str, ffmpeg=FFMPEG):
