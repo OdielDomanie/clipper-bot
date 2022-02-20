@@ -166,7 +166,7 @@ Valid position arguments: `everyone`, `{"`, `".join(CROP_STR.keys())}`""")
 
         stream = self.bot.streams[ctx.channel]
         if stream.actual_start is not None:
-            from_start -= stream.start_time.astimezone() - stream.actual_start
+            from_start -= stream.start_time - stream.actual_start
 
         await self._create_n_send_clip(ctx, from_start, duration, audio_only)
     
@@ -225,7 +225,7 @@ Assume the stream started at the hour mark.""")
         else:
             duration = _duration_converter(duration)
         stream = self.bot.streams[ctx.channel]
-        from_time = dt.datetime.now() - relative_start - stream.start_time
+        from_time = dt.datetime.now(dt.timezone.utc) - relative_start - stream.start_time
 
         return from_time, duration, -relative_start
 

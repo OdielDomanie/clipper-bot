@@ -49,7 +49,7 @@ async def one_time_listen(bot, txtchn:TextChannel, vid_url):
     try:
         _, website = sanitize_vid_url(vid_url)
         title = vid_url
-        start_time = dt.datetime.utcnow()
+        start_time = dt.datetime.now(dt.timezone.utc)
         if website != "twspace":
             msg = await stream_will_start_msg(txtchn, vid_url)
             vid_url, title, start_time = await wait_for_stream(vid_url)

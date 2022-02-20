@@ -98,7 +98,7 @@ class StreamDownload:
                     self.logger.info(f"Starting recording of {self.vid_url}")
                     await self._download()
                     self.wait_stop_task = asyncio.create_task(self._wait_stop())
-                    self.start_time = dt.datetime.now()
+                    self.start_time = dt.datetime.now(timezone.utc)
                 else:
                     self.logger.info(f"Sharing ({self.start_count}) download for"
                         f" {self.vid_url}")
