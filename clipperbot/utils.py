@@ -37,6 +37,16 @@ class PersistentDict(MutableMapping):
         self._create_table()
 
         assigned_table_names.add(table_name)
+    
+    def drop(self):
+        "Drop the sql table. This object mustn't be used after that."
+        con = sqlite3.connect(self.database)
+        cur = con.cursor()
+        cur.execute(
+            f"DROP TABLE IF EXISTS '{self.table_name}'"
+        )
+        con.commit()
+        con.close()
 
     def _create_table(self):
         con = sqlite3.connect(self.database)
@@ -130,6 +140,16 @@ class PersistentDictofSet(MutableMapping):
         self._create_table()
 
         assigned_table_names.add(table_name)
+        
+    def drop(self):
+        "Drop the sql table. This object mustn't be used after that."
+        con = sqlite3.connect(self.database)
+        cur = con.cursor()
+        cur.execute(
+            f"DROP TABLE IF EXISTS '{self.table_name}'"
+        )
+        con.commit()
+        con.close()
 
     def _create_table(self):
         con = sqlite3.connect(self.database)
