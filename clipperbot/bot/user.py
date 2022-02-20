@@ -83,11 +83,6 @@ class Clipping(commands.Cog):
 
         audio_only = ctx.invoked_with in ["audio", "a"]
 
-        if not audio_only and duration > self.bot.max_clip_duration:
-            # Duration more than allowed.
-            # Maybe notify the user?
-            return
-
         await self._create_n_send_clip(
             ctx, from_time, duration, audio_only, relative_start=relative_start
         )
@@ -236,6 +231,12 @@ Assume the stream started at the hour mark.""")
 
     async def _create_n_send_clip(self, ctx, from_time:dt.timedelta, 
             duration:dt.timedelta, audio_only=False, relative_start=None):
+
+        if not audio_only and duration > self.bot.max_clip_duration:
+            # Duration more than allowed.
+            # Maybe notify the user?
+            raise commands.BadArgument
+
         try:
             stream = self.bot.streams[ctx.channel]
             if stream.website == "twspace":
