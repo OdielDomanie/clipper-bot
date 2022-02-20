@@ -131,7 +131,8 @@ class StreamDownload:
             raise e
         finally:
             if self.website == "youtube":
-                get_actstart_task.cancel()
+                try: get_actstart_task.cancel()
+                except AttributeError: pass
     
     actual_start_cache = {}  # Slow memory leak
     async def get_holodex_start(self, video_id):
