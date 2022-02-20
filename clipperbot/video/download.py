@@ -111,9 +111,9 @@ class StreamDownload:
 
             await asyncio.shield(self.wait_stop_task)
 
-        except BaseException as e:
-            if not isinstance(e, asyncio.CancelledError):
-                self.logger.exception(e)
+        except BaseException as base_e:
+            if not isinstance(base_e, asyncio.CancelledError):
+                self.logger.exception(base_e)
             
             if self.proc and (isinstance(self.proc, asyncio.Task)
                                 or self.proc.returncode is None):
@@ -123,12 +123,12 @@ class StreamDownload:
                         
                         try:
                             self.wait_stop_task.cancel()
-                        except Exception as e:
-                            logging.exception(e)
+                        except Exception as exc:
+                            logging.exception(exc)
                         
                         if not isinstance(self.proc, asyncio.Task):
                             await self.stop_process()
-            raise e
+            raise base_e
         finally:
             if self.website == "youtube":
                 try: get_actstart_task.cancel()
