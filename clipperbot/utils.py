@@ -9,6 +9,7 @@ import time
 import collections
 from collections.abc import MutableMapping
 import os
+from ast import literal_eval
 
 
 logger = logging.getLogger("clipping.bot")
@@ -123,18 +124,25 @@ class PersistentDict(MutableMapping):
         return len(self._store)
 
 
-class PersistentDictofSet(MutableMapping):
-    """Like `PersistentDict`, but stores sets as values.
+class PersistentSetDict(MutableMapping):
+    """Multiindex dictionary of sets that loads from database upon initilization,
+    and writes to it with every set operation. 
+    The cache goes stale in cache_duration seconds, if not None.
     """
-    def __init__(self, database:str, table_name:str,
-            str_to_key, str_to_val:Callable[[str],Any]):
+    def __init__(
+        self,
+        database:str,
+        table_name:str,
+        depth:int
+    ):
         self.database = database
         self.table_name = table_name
-        self.str_to_key = str_to_key
-        self.str_to_val = str_to_val
+        self.depth = depth
 
-        self.store = {}
+        self._store = {}
         self._cache_valid = False
+        self._keys = [f"key_{i}" for i in range(self.depth)]
+        self._key_names = ",".join(self._keys)
 
         assert table_name not in assigned_table_names
         self._create_table()
@@ -156,9 +164,10 @@ class PersistentDictofSet(MutableMapping):
         cur = con.cursor()
         cur.execute(
             f"""CREATE TABLE IF NOT EXISTS '{self.table_name}' (
-                key_ ,
+                {self._key_names} ,
                 value_,
-                UNIQUE(key_, value_) ON CONFLICT REPLACE)"""
+                UNIQUE({self._key_names}, value_)
+                ON CONFLICT REPLACE)"""
         )
         con.commit()
         con.close()
@@ -167,93 +176,133 @@ class PersistentDictofSet(MutableMapping):
         con = sqlite3.connect(self.database)
         cur = con.cursor()
         cur.execute(
-            f"SELECT key_, value_ FROM '{self.table_name}'"
+            f"SELECT {self._key_names}, value_ FROM '{self.table_name}'"
         )
         tuple_results = cur.fetchall()
         store = {}
-        for key, value in tuple_results:
-            store.setdefault(self.str_to_key(key), set()).add(self.str_to_val(value))
-        self.store = store
+
+        for result in tuple_results:
+            keys = tuple(
+                literal_eval(key) for key in result[:-1]
+            )
+            value = result[-1]
+            store.setdefault(keys, set()).add(literal_eval(value))
+
+        self._store = store
         self._cache_valid = True
 
-    def __getitem__(self, key):
+    def __getitem__(self, keys):
+        if len(keys) != self.depth: raise KeyError
         if not self._cache_valid:
             self._populate_from_sql()
-        return self.store[key]
+        return frozenset(self._store[tuple(keys)])
     
-    def add(self, key, value):
+    def add(self, *keys, value):
         # test validity
-        if not (key == self.str_to_key(str(key))
-            and value == self.str_to_val(str(value))):
+        if any(key != literal_eval(repr(key))
+                for key in keys)\
+            or value != literal_eval(repr(value)):
             raise ValueError
+        
+        if len(keys) != self.depth: raise KeyError
+        
+        key_strs = tuple(repr(key) for key in keys)
 
         con = sqlite3.connect(self.database)
         cur = con.cursor()
         cur.execute(
-            f"INSERT INTO '{self.table_name}' VALUES (?, ?)", (str(key), str(value))
+            f"""INSERT INTO '{self.table_name}'
+            VALUES ({','.join(['?'] * self.depth)}, ?)""",
+            key_strs + ((repr(value),))
         )
         con.commit()
         con.close()
-        self.store.setdefault(key, set()).add(value)
 
-    def __setitem__(self, key, value_set):
+        self._store.setdefault(tuple(keys), set()).add(value)
+
+    def __setitem__(self, *keys, value_set):
         
         # test validity
-        if (key != self.str_to_key(str(key))
+        if (any(key != literal_eval(repr(key))
+                for key in keys)
             or any(
-                value != self.str_to_val(str(value)) for value in value_set
+                value != literal_eval(repr(value)) for value in value_set
                 )
             ):
             raise ValueError
+        
+        if len(keys) != self.depth: raise KeyError
+
+        key_strs = tuple(repr(key) for key in keys)
 
         con = sqlite3.connect(self.database)
         cur = con.cursor()
 
         for value in value_set:
-            
+
             cur.execute(
-                f"INSERT INTO '{self.table_name}' VALUES (?, ?)", (str(key), str(value))
+                f"""INSERT INTO '{self.table_name}'
+                VALUES ({','.join(['?'] * self.depth)}, ?)""",
+                key_strs + ((repr(value),))
             )
 
         con.commit()
         con.close()
-        self.store[key] = value_set
+        self._store[tuple(keys)] = set(value_set)
     
-    def remove(self, key, value):
+    def remove(self, *keys, value):        
+        if len(keys) != self.depth: raise KeyError
+
+        key_strs = tuple(repr(key) for key in keys)
+
         con = sqlite3.connect(self.database)
         cur = con.cursor()
         cur.execute(
-            f"DELETE FROM '{self.table_name}' WHERE key_ = ? AND value_ = ?", (str(key), str(value))
+            f"""DELETE FROM '{self.table_name}' WHERE
+            {' AND '.join(key+' = ?' for key in self._keys)}
+            AND value_ = ?""",
+            key_strs + ((repr(value),))
         )
         con.commit()
         con.close()
         try:
-            self.store[key].remove(value)
+            self._store[tuple(keys)].remove(value)
         except KeyError:
             pass
 
-    def __delitem__(self, key):
+    def __delitem__(self, keys):
+        if len(keys) != self.depth: raise KeyError
+
+        key_strs = tuple(repr(key) for key in keys)
+
         con = sqlite3.connect(self.database)
         cur = con.cursor()
         cur.execute(
-            f"DELETE FROM '{self.table_name}' WHERE key_ = ?", (str(key),)
+            f"""DELETE FROM '{self.table_name}' WHERE
+            {' AND '.join(key+' = ?' for key in self._keys)}""",
+            key_strs
         )
         con.commit()
         con.close()
         try:
-            del self.store[key]
+            del self._store[tuple(keys)]
         except KeyError:
             pass
 
     def __iter__(self):
         if not self._cache_valid:
             self._populate_from_sql()
-        return iter(self.store)
+        return iter(self._store)
     
     def __len__(self):
         if not self._cache_valid:
             self._populate_from_sql()
-        return len(self.store)
+        return len(self._store)
+    
+    def __contains__(self, keys) -> bool:
+        if not self._cache_valid:
+            self._populate_from_sql()
+        return tuple(keys) in self._store
 
 
 async def manserv_or_owner(ctx):
