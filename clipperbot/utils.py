@@ -195,8 +195,11 @@ class PersistentSetDict(MutableMapping):
         if len(keys) != self.depth: raise KeyError
         if not self._cache_valid:
             self._populate_from_sql()
-        return frozenset(self._store[tuple(keys)])
-    
+        try:
+            return frozenset(self._store[tuple(keys)])
+        except:
+            return frozenset()
+
     def add(self, *keys, value):
         # test validity
         if any(key != literal_eval(repr(key))
