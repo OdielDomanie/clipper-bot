@@ -107,13 +107,15 @@ class ClipBot(commands.Bot):
         if category == "Admin": chan_perm=False
 
         # Check whether the role is ok
+        role_perm = False
         for role in roles:
             role_name = role.name
-            cat_role_perm = category in self.command_role_perms[guild, role_name]
-            name_role_perm = name in self.command_role_perms[guild, role_name]
-            alias_role_perm = alias in self.command_role_perms[guild, role_name]
+            cat_role_perm = role in self.command_role_perms[guild, category]
+            name_role_perm = role in self.command_role_perms[guild, name]
+            alias_role_perm = role in self.command_role_perms[guild, alias]
 
-        role_perm = any((cat_role_perm, name_role_perm, alias_role_perm))
+            role_perm = any((cat_role_perm, name_role_perm, alias_role_perm))
+            if role_perm: break
 
         # If a Clipping command is not registered to any role within the guild,
         # assume it is allowed.
