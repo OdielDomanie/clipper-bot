@@ -2,7 +2,7 @@ import asyncio
 import logging
 import discord
 from discord.ext import commands
-from ..utils import PersistentDict
+from ..utils import PersistentDict, PersistentSetDict, manserv_or_owner
 from ..video.download import StreamDownload
 from . import streams
 from .deletables import DeletableMessages
@@ -33,8 +33,19 @@ class ClipBot(commands.Bot):
         self.possible_link_perms = possible_link_perms
         self.link_perms = PersistentDict(database, "link_perms", int, str)
 
+        # Depreciated
         self.role_perms = PersistentDict(database, "role_perms", int, str)
-        
+
+        # {guild_id, command/category/alias name : role}
+        self.command_role_perms = PersistentSetDict(
+            database, "command_role", 2
+        )
+        # {guild_id, command/category/alias name : txt_chn name}
+        self.command_txtchn_perms = PersistentSetDict(
+            database, "command_txtchn", 2
+        )
+        self.add_check(self.chec_perms)
+
         # {guild_id: _}
         self.guild_whitelist = PersistentDict(database, "guild_whitelist",
             int, str, cache_duration=60) 
@@ -60,6 +71,58 @@ class ClipBot(commands.Bot):
         self.help_command = commands.DefaultHelpCommand(
             no_category = 'Info'
         )
+    
+    async def check_perms(self, ctx:commands.Context):
+
+        category = ctx.command.cog_name
+        name = ctx.command.name
+        alias = ctx.invoked_with
+
+        guild:int = ctx.guild.id
+        channel:int = ctx.channel.id
+        member:discord.Member = ctx.author
+        if not isinstance(discord.Member):
+            return False
+        roles:list[discord.Role] = member.roles
+
+        if category == "Admin":
+            self.logger.info(f"{member.name}, roles {roles}, tried {alias} .")
+
+        if manserv_or_owner(ctx):
+            return True
+
+        # Check whether the channel is banned
+        cat_chan_perm = channel in self.command_txtchn_perms[guild, category]
+        name_chan_perm = channel in self.command_txtchn_perms[guild, name]
+        alias_chan_perm = channel in self.command_txtchn_perms[guild, alias]
+
+        chan_perm = any((cat_chan_perm, name_chan_perm, alias_chan_perm))
+        # If the command is not permitted in any text channel, assume it is
+        # allowed everywhere.
+        if all(len(self.command_txtchn_perms[guild, com])==0
+                for com in (category,name,alias)):
+            chan_perm = True
+        
+        # Specific exception for admin commands
+        if category == "Admin": chan_perm=False
+
+        # Check whether the role is ok
+        for role in roles:
+            role_name = role.name
+            cat_role_perm = category in self.command_role_perms[guild, role_name]
+            name_role_perm = name in self.command_role_perms[guild, role_name]
+            alias_role_perm = alias in self.command_role_perms[guild, role_name]
+
+        role_perm = any((cat_role_perm, name_role_perm, alias_role_perm))
+
+        # If a Clipping command is not registered to any role within the guild,
+        # assume it is allowed.
+        if category == "Clipping"\
+            and all(len(self.command_role_perms[guild, com])==0
+                for com in (category,name,alias)):
+            role_perm = True
+        
+        return chan_perm and role_perm
     
     def execute_input(self):
         while True:

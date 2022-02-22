@@ -308,11 +308,11 @@ class PersistentSetDict(MutableMapping):
 async def manserv_or_owner(ctx):
     try:
         manag_guild_perm = ctx.author.guild_permissions.manage_guild
-        logger.info(f"Permission requested for {ctx.command.name} by"
-            f" {ctx.author.name} in {ctx.channel.name}")
+        # logger.info(f"Permission requested for {ctx.command.name} by"
+        #     f" {ctx.author.name} in {ctx.channel.name}")
         permissed = manag_guild_perm or ctx.author.id == ctx.bot.owner_id
-        logger.info(f"manage_guild permission: {manag_guild_perm}."
-            f" Is owner: {ctx.author.id == ctx.bot.owner_id}")
+        # logger.info(f"manage_guild permission: {manag_guild_perm}."
+        #     f" Is owner: {ctx.author.id == ctx.bot.owner_id}")
     # if author returns none (eg. user leaves the guild same instant.)
     except AttributeError as e:
         logger.info(e)
