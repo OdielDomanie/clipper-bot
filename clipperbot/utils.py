@@ -223,7 +223,7 @@ class PersistentSetDict(MutableMapping):
 
         self._store.setdefault(tuple(keys), set()).add(value)
 
-    def __setitem__(self, *keys, value_set):
+    def __setitem__(self, keys, value_set):
         
         # test validity
         if (any(key != literal_eval(repr(key))
