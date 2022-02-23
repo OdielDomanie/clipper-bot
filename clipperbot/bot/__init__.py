@@ -22,6 +22,8 @@ class ClipBot(commands.Bot):
         super().__init__(self._get_prefix, 
             description=help_description, intents = intents, **options)
 
+        # self.case_insensitive = True
+
         self.def_clip_duration = def_clip_duration
         self.max_clip_duration = MAX_DURATION
 
@@ -36,15 +38,15 @@ class ClipBot(commands.Bot):
         # Depreciated
         self.role_perms = PersistentDict(database, "role_perms", int, str)
 
-        # {guild_id, command/category/alias name : role}
+        # {guild.id, command/category/alias name : role}
         self.command_role_perms = PersistentSetDict(
             database, "command_role", 2
         )
-        # {guild_id, command/category/alias name : txt_chn name}
+        # {guild.id, command/category/alias name : txt_chn.id}
         self.command_txtchn_perms = PersistentSetDict(
             database, "command_txtchn", 2
         )
-        self.add_check(self.chec_perms)
+        self.add_check(self.check_perms)
 
         # {guild_id: _}
         self.guild_whitelist = PersistentDict(database, "guild_whitelist",
@@ -71,17 +73,28 @@ class ClipBot(commands.Bot):
         self.help_command = commands.DefaultHelpCommand(
             no_category = 'Info'
         )
-    
-    async def check_perms(self, ctx:commands.Context):
+
+        self.migrate_role_perms()
+
+
+    def migrate_role_perms(self):
+        for guild_id in self.role_perms:
+            roles = self.get_role_perm(guild_id)
+            self.command_role_perms[guild_id, "Admin"] = roles
+        self.role_perms.drop()
+        del self.role_perms
+
+    def check_perms(self, ctx:commands.Context):
 
         category = ctx.command.cog_name
+        parents = ctx.invoked_parents
         name = ctx.command.name
         alias = ctx.invoked_with
 
         guild:int = ctx.guild.id
         channel:int = ctx.channel.id
         member:discord.Member = ctx.author
-        if not isinstance(discord.Member):
+        if not isinstance(member, discord.Member):
             return False
         roles:list[discord.Role] = member.roles
 
@@ -89,39 +102,53 @@ class ClipBot(commands.Bot):
             self.logger.info(f"{member.name}, roles {roles}, tried {alias} .")
 
         if manserv_or_owner(ctx):
-            return True
+            self.logger.info("is manserv or owner")
+            # return True
 
         # Check whether the channel is banned
         cat_chan_perm = channel in self.command_txtchn_perms[guild, category]
+        prnt_chan_perm = any(
+            channel in self.command_txtchn_perms[guild, parent]
+            for parent in parents)
         name_chan_perm = channel in self.command_txtchn_perms[guild, name]
         alias_chan_perm = channel in self.command_txtchn_perms[guild, alias]
 
-        chan_perm = any((cat_chan_perm, name_chan_perm, alias_chan_perm))
+        chan_perm = any((cat_chan_perm, prnt_chan_perm, name_chan_perm, alias_chan_perm))
         # If the command is not permitted in any text channel, assume it is
         # allowed everywhere.
         if all(len(self.command_txtchn_perms[guild, com])==0
-                for com in (category,name,alias)):
+                for com in [category,name,alias] + parents):
             chan_perm = True
         
         # Specific exception for admin commands
-        if category == "Admin": chan_perm=False
+        if category == "Admin": chan_perm=True
 
         # Check whether the role is ok
         role_perm = False
         for role in roles:
             role_name = role.name
-            cat_role_perm = role in self.command_role_perms[guild, category]
-            name_role_perm = role in self.command_role_perms[guild, name]
-            alias_role_perm = role in self.command_role_perms[guild, alias]
+            cat_role_perm = role_name in self.command_role_perms[guild, category]
+            prnt_role_perm = any(
+                role_name in self.command_role_perms[guild, parent]
+                for parent in parents)
+            name_role_perm = role_name in self.command_role_perms[guild, name]
+            alias_role_perm = role_name in self.command_role_perms[guild, alias]
 
-            role_perm = any((cat_role_perm, name_role_perm, alias_role_perm))
+            role_perm = any((cat_role_perm, prnt_role_perm, name_role_perm, alias_role_perm))
             if role_perm: break
 
         # If a Clipping command is not registered to any role within the guild,
         # assume it is allowed.
-        if category == "Clipping"\
+        if category in {None, "Clipping"}\
             and all(len(self.command_role_perms[guild, com])==0
-                for com in (category,name,alias)):
+                for com in [category,name,alias] + parents):
+            role_perm = True
+        
+        # If the member has permission to role_permission, then it has
+        # permission to everything.
+        if name != "role_permission" and "role_permission" not in parents\
+            and (role_name in self.command_role_perms[guild, "Admin"]
+                or role_name in self.command_role_perms[guild, "role_permission"]):
             role_perm = True
         
         return chan_perm and role_perm

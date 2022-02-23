@@ -308,7 +308,7 @@ class PersistentSetDict(MutableMapping):
         return tuple(keys) in self._store
 
 
-async def manserv_or_owner(ctx):
+def manserv_or_owner(ctx):
     try:
         manag_guild_perm = ctx.author.guild_permissions.manage_guild
         # logger.info(f"Permission requested for {ctx.command.name} by"
