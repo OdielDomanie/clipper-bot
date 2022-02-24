@@ -103,7 +103,7 @@ class ClipBot(commands.Bot):
 
         if manserv_or_owner(ctx):
             self.logger.info("is manserv or owner")
-            # return True
+            return True
 
         # Check whether the channel is banned
         cat_chan_perm = channel in self.command_txtchn_perms[guild, category]
