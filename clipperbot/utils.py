@@ -38,7 +38,7 @@ class PersistentDict(MutableMapping):
         self._create_table()
 
         assigned_table_names.add(table_name)
-    
+
     def drop(self):
         "Drop the sql table. This object mustn't be used after that."
         con = sqlite3.connect(self.database)
@@ -71,7 +71,7 @@ class PersistentDict(MutableMapping):
         self._store = store
         self._cache_valid = True
         self._last_cache = time.monotonic()
-    
+
     def _calc_cache_staleness(self):
         if (self.cache_duration is not None
             and time.monotonic() - self._last_cache > self.cache_duration):
@@ -116,7 +116,7 @@ class PersistentDict(MutableMapping):
         if not self._cache_valid:
             self._populate_from_sql()
         return iter(self._store)
-    
+
     def __len__(self):
         self._calc_cache_staleness()
         if not self._cache_valid:
@@ -126,7 +126,7 @@ class PersistentDict(MutableMapping):
 
 class PersistentSetDict(MutableMapping):
     """Multiindex dictionary of sets that loads from database upon initilization,
-    and writes to it with every set operation. 
+    and writes to it with every set operation.
     The cache goes stale in cache_duration seconds, if not None.
     """
     def __init__(
@@ -148,7 +148,7 @@ class PersistentSetDict(MutableMapping):
         self._create_table()
 
         assigned_table_names.add(table_name)
-        
+
     def drop(self):
         "Drop the sql table. This object mustn't be used after that."
         con = sqlite3.connect(self.database)
@@ -206,9 +206,9 @@ class PersistentSetDict(MutableMapping):
                 for key in keys)\
             or value != literal_eval(repr(value)):
             raise ValueError
-        
+
         if len(keys) != self.depth: raise KeyError
-        
+
         key_strs = tuple(repr(key) for key in keys)
 
         con = sqlite3.connect(self.database)
@@ -224,7 +224,7 @@ class PersistentSetDict(MutableMapping):
         self._store.setdefault(tuple(keys), set()).add(value)
 
     def __setitem__(self, keys, value_set):
-        
+
         # test validity
         if (any(key != literal_eval(repr(key))
                 for key in keys)
@@ -233,7 +233,7 @@ class PersistentSetDict(MutableMapping):
                 )
             ):
             raise ValueError
-        
+
         if len(keys) != self.depth: raise KeyError
 
         key_strs = tuple(repr(key) for key in keys)
@@ -252,8 +252,8 @@ class PersistentSetDict(MutableMapping):
         con.commit()
         con.close()
         self._store[tuple(keys)] = set(value_set)
-    
-    def remove(self, *keys, value):        
+
+    def remove(self, *keys, value):
         if len(keys) != self.depth: raise KeyError
 
         key_strs = tuple(repr(key) for key in keys)
@@ -296,12 +296,12 @@ class PersistentSetDict(MutableMapping):
         if not self._cache_valid:
             self._populate_from_sql()
         return iter(self._store)
-    
+
     def __len__(self):
         if not self._cache_valid:
             self._populate_from_sql()
         return len(self._store)
-    
+
     def __contains__(self, keys) -> bool:
         if not self._cache_valid:
             self._populate_from_sql()
@@ -338,7 +338,7 @@ class RateLimit:
         self.pool = collections.deque(maxlen=limit)
         self._lock = asyncio.Lock()
         self.logger = logging.getLogger("clipping.bot.ratelimit")
-    
+
     def _wait_time(self):
         if len(self.pool) < self.pool.maxlen:
             return 0
@@ -348,7 +348,7 @@ class RateLimit:
                 return 0
             else:
                 return self.interval - diff
-    
+
     def skip(self, cor):
         "Returns coroutine that will skip operation if within ratelimit."
         @functools.wraps(cor)
@@ -370,7 +370,7 @@ class WeighedRateLimit:
         self.pool = collections.deque()
         self._lock = asyncio.Lock()
         self.logger = logging.getLogger("clipping.bot")
-    
+
     def _total_weight(self):
         return sum(weight for _, weight in self.pool)
 
@@ -378,7 +378,7 @@ class WeighedRateLimit:
         extra = self._total_weight() - self.limit
         while extra > 0:
             extra -= self.pool.popleft()[1]
-                
+
     def add(self, weight):
         self.pool.append((dt.datetime.now(), weight))
 

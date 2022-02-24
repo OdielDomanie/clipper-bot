@@ -2,7 +2,7 @@ import asyncio
 from discord.ext import commands
 from .. import utils
 from . import streams
-from ..video.download import (sanitize_chnurl, sanitize_vid_url, 
+from ..video.download import (sanitize_chnurl, sanitize_vid_url,
     fetch_yt_metadata, RateLimited)
 from . import help_strings
 from typing import TYPE_CHECKING
@@ -22,7 +22,7 @@ Use `role_permission add Admin <role>` command to allow a role to use these comm
     def __init__(self, bot:"ClipBot"):
         self.bot = bot
         self.register_lock = asyncio.Lock()
-    
+
     @commands.group(
         brief="Allow/disallow commands on specified text-channels.",
         help=help_strings.channel_permission_description,
@@ -33,13 +33,13 @@ Use `role_permission add Admin <role>` command to allow a role to use these comm
         for guild_com_tuple, chn_id in self.bot.command_txtchn_perms.items():
             if ctx.guild.id == guild_com_tuple[0] and ctx.channel.id in chn_id:
                 allowed_commands.add(guild_com_tuple[1])
-        
+
         if len(allowed_commands) == 0:
             await ctx.send("All commands are enabled on this text channel.")
         else:
             allowed_commands_str = ", ".join(allowed_commands)
             await ctx.send(f"Enabled commands in this channel: {allowed_commands_str}")
-    
+
     @channel_permission.command(
         name="add",
         brief="Enable a command on this text channel.",
@@ -50,14 +50,14 @@ Use `role_permission add Admin <role>` command to allow a role to use these comm
             ctx.guild.id, command, value=ctx.channel.id
         )
         await self.channel_permission(ctx)
-    
+
     @channel_permission.command(name="remove")
     async def channel_permission_remove(self, ctx, command:str):
         self.bot.command_txtchn_perms.remove(
             ctx.guild.id, command, value=ctx.channel.id
         )
         await self.channel_permission(ctx)
-    
+
     @commands.group(
         brief="Give roles permission to use specified commands.",
         help=help_strings.role_permission_description,
@@ -73,7 +73,7 @@ Use `role_permission add Admin <role>` command to allow a role to use these comm
 
         allowed_roles_str = ", ".join(allowed_roles)
         await ctx.send(f"Role permissions: `{allowed_roles_str}`")
-    
+
     @role_permission.command(
         name="add",
         brief="Enable a command for a role.",
@@ -89,7 +89,7 @@ Use `role_permission add Admin <role>` command to allow a role to use these comm
             ctx.guild.id, command, value=role
         )
         await self.role_permission(ctx)
-    
+
     @role_permission.command(
         name="remove",
         usage="<command> <role>"
@@ -106,7 +106,7 @@ Use `role_permission add Admin <role>` command to allow a role to use these comm
     @commands.command(
         brief="Give a role permission for \"Admin\" commands.",
         help="Give a role permission for \"Admin\" commands.",
-        enabled=False    
+        enabled=False
     )
     async def give_permission(self, ctx, role:str):
 
@@ -115,7 +115,7 @@ Use `role_permission add Admin <role>` command to allow a role to use these comm
         self.bot.add_role_perm(ctx.guild.id, role)
 
         await ctx.send(f"Roles with admin permissions: {', '.join(self.bot.get_role_perm(ctx.guild.id))}")
-    
+
     @commands.command(brief="Remove a role's permission for \"Admin\" commands.",
         enabled=False)
     async def remove_permission(self, ctx, role:str):
@@ -126,7 +126,7 @@ Use `role_permission add Admin <role>` command to allow a role to use these comm
         except KeyError:
             pass
         await ctx.send(f"Roles with admin permissions: {', '.join(self.bot.get_role_perm(ctx.guild.id))}")
-    
+
     @commands.command(brief="View the roles that have permission for \"Admin\" commands.",
         enabled=False)
     async def role_permissions(self, ctx):
@@ -144,7 +144,7 @@ False by default. Valid arguments: `true`, `false`"
     @commands.command(help = allow_link_help, brief = allow_link_brief)
     async def allow_links(self, ctx, allow:str):
 
-        allow = allow.lower() 
+        allow = allow.lower()
         if allow not in self.bot.possible_link_perms:
             raise commands.BadArgument
 
@@ -153,13 +153,13 @@ False by default. Valid arguments: `true`, `false`"
         self.bot.link_perms[ctx.guild.id] = allow
 
         await ctx.send(f"`Big clips posted as links: {allow}`")
-    
+
     prefix_brief = "Change the channel prefix."
     @commands.command()
     async def prefix(self, ctx, prefix:str):
         "Change the channel prefix. The default prefix is always available."
         self.bot.prefixes[ctx.guild.id] = prefix
-    
+
     @commands.command()
     async def channel(self, ctx):
         "View the registered channel."
@@ -184,7 +184,7 @@ False by default. Valid arguments: `true`, `false`"
                 self._unregister(ctx.channel)
             except KeyError:
                 pass
-            
+
             try:
                 await self._register(ctx, channel_url)
             except ValueError:
@@ -192,7 +192,7 @@ False by default. Valid arguments: `true`, `false`"
                 return
 
             await ctx.send(f"Registered <{self.bot.channel_mapping[ctx.channel.id]}> on this channel.")
-    
+
     @commands.command()
     async def unregister(self, ctx):
         "Make clipping unavailable on this text channel."
@@ -202,7 +202,7 @@ False by default. Valid arguments: `true`, `false`"
                 await ctx.send(f"<{chn_url}> unregistered from {ctx.channel.name}.")
             except KeyError:
                 await ctx.send(f"No channel registered on {ctx.channel.name}.")
-    
+
     stream_cancels:dict[str, bool] = {}
     stream_id_counter = 0
 
@@ -229,19 +229,19 @@ False by default. Valid arguments: `true`, `false`"
 
         try:
             await stream_task
-        
+
         except RateLimited:
             await ctx.send(f"Ratelimited by {website}! :(")
         except ValueError:
             await ctx.reply("Invalid url.")
-        
+
         finally:
-            
+
             if old_chn is not None:
                 try:
                     self._unregister(ctx.channel)
                 except KeyError:
-                    pass                    
+                    pass
                 self._register_wo_sanitize(ctx, old_chn)
 
     async def _register(self, ctx, channel_url):
@@ -249,7 +249,7 @@ False by default. Valid arguments: `true`, `false`"
         listen_task = asyncio.create_task(
                     streams.listen(self.bot, ctx.channel, channel_url))
         self.bot.listens[ctx.channel] = listen_task
-    
+
     def _register_wo_sanitize(self, ctx, channel_url):
         listen_task = asyncio.create_task(
                     streams.listen(self.bot, ctx.channel, channel_url))
@@ -269,14 +269,14 @@ False by default. Valid arguments: `true`, `false`"
                     Admin.stream_cancels[task_name.split()[1]] = True
             else:
                 listen_task.cancel()
-            
+
             del self.bot.listens[txtchn]
 
         chn_url = self.bot.channel_mapping[txtchn.id]
         del self.bot.channel_mapping[txtchn.id]
 
         return chn_url
-    
+
     # @commands.command
     # async def reset(self, ctx):
     #     stream_download = self.bot.streams[ctx.channel]
