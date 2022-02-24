@@ -17,7 +17,7 @@ def setup(bot:"ClipBot"):
 
 class Admin(commands.Cog):
     """Available with \"Manage Server\" permission, the same permission required to add the bot.
-Use `give_permission` command to allow a role to use these commands as well."""
+Use `role_permission add Admin <role>` command to allow a role to use these commands as well."""
 
     def __init__(self, bot:"ClipBot"):
         self.bot = bot
@@ -77,11 +77,12 @@ Use `give_permission` command to allow a role to use these commands as well."""
     @role_permission.command(
         name="add",
         brief="Enable a command for a role.",
-        help="Enable a command for a role."
+        help="Enable a command for a role.",
+        usage="<command> <role>"
     )
     async def role_permission_add(self, ctx, command:str, *role:str):
         if len(role) == 0:
-            await ctx.send("Need to specify role: `role_permission add command role`")
+            await ctx.send("Need to specify role: `role_permission add <command> <role>`")
             return
         role = " ".join(role)
         self.bot.command_role_perms.add(
@@ -89,10 +90,13 @@ Use `give_permission` command to allow a role to use these commands as well."""
         )
         await self.role_permission(ctx)
     
-    @role_permission.command(name="remove")
+    @role_permission.command(
+        name="remove",
+        usage="<command> <role>"
+    )
     async def role_permission_remove(self, ctx, command:str, *role:str):
         if len(role) == 0:
-            await ctx.send("Need to specify role: `role_permission remove command role`")
+            await ctx.send("Need to specify role: `role_permission remove <command> <role>`")
         role = " ".join(role)
         self.bot.command_role_perms.remove(
             ctx.guild.id, command, value=role
