@@ -1,4 +1,5 @@
 import asyncio
+import os
 from discord.ext import commands
 from .. import utils
 from . import streams
@@ -277,7 +278,22 @@ False by default. Valid arguments: `true`, `false`"
 
         return chn_url
 
-    # @commands.command
-    # async def reset(self, ctx):
-    #     stream_download = self.bot.streams[ctx.channel]
-    #     await stream_download.stop_process()
+    reset_help = \
+    "Clear the internal download cache, making everything before this point un-clippable."\
+    "Only use when absolutely necessary please."
+    @commands.command(
+        brief="",
+        help=reset_help
+    )
+    async def reset(self, ctx):
+        "Clear the internal download cache, making everything before this "\
+        "point un-clippable, in case something yab happens on stream. "\
+        "Only use when absolutely necessary please."
+        stream_download = self.bot.streams[ctx.channel]
+        try:
+            os.remove(stream_download.filepath)
+        except FileNotFoundError:
+            try:
+                os.remove(stream_download.filepath + ".part")
+            except:
+                pass
