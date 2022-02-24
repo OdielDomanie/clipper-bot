@@ -9,10 +9,12 @@ import time
 import collections
 from collections.abc import MutableMapping
 import os
+from ast import literal_eval
 
 
 logger = logging.getLogger("clipping.bot")
 
+assigned_table_names = set()
 
 class PersistentDict(MutableMapping):
     """Dictionary that loads from database upon initilization,
@@ -32,7 +34,20 @@ class PersistentDict(MutableMapping):
         self._cache_valid = False
         self._last_cache = float("-inf")
 
-        self._create_table()    
+        assert table_name not in assigned_table_names
+        self._create_table()
+
+        assigned_table_names.add(table_name)
+
+    def drop(self):
+        "Drop the sql table. This object mustn't be used after that."
+        con = sqlite3.connect(self.database)
+        cur = con.cursor()
+        cur.execute(
+            f"DROP TABLE IF EXISTS '{self.table_name}'"
+        )
+        con.commit()
+        con.close()
 
     def _create_table(self):
         con = sqlite3.connect(self.database)
@@ -56,7 +71,7 @@ class PersistentDict(MutableMapping):
         self._store = store
         self._cache_valid = True
         self._last_cache = time.monotonic()
-    
+
     def _calc_cache_staleness(self):
         if (self.cache_duration is not None
             and time.monotonic() - self._last_cache > self.cache_duration):
@@ -101,7 +116,7 @@ class PersistentDict(MutableMapping):
         if not self._cache_valid:
             self._populate_from_sql()
         return iter(self._store)
-    
+
     def __len__(self):
         self._calc_cache_staleness()
         if not self._cache_valid:
@@ -109,14 +124,198 @@ class PersistentDict(MutableMapping):
         return len(self._store)
 
 
-async def manserv_or_owner(ctx):
+class PersistentSetDict(MutableMapping):
+    """Multiindex dictionary of sets that loads from database upon initilization,
+    and writes to it with every set operation.
+    The cache goes stale in cache_duration seconds, if not None.
+    """
+    def __init__(
+        self,
+        database:str,
+        table_name:str,
+        depth:int
+    ):
+        self.database = database
+        self.table_name = table_name
+        self.depth = depth
+
+        self._store = {}
+        self._cache_valid = False
+        self._keys = [f"key_{i}" for i in range(self.depth)]
+        self._key_names = ",".join(self._keys)
+
+        assert table_name not in assigned_table_names
+        self._create_table()
+
+        assigned_table_names.add(table_name)
+
+    def drop(self):
+        "Drop the sql table. This object mustn't be used after that."
+        con = sqlite3.connect(self.database)
+        cur = con.cursor()
+        cur.execute(
+            f"DROP TABLE IF EXISTS '{self.table_name}'"
+        )
+        con.commit()
+        con.close()
+
+    def _create_table(self):
+        con = sqlite3.connect(self.database)
+        cur = con.cursor()
+        cur.execute(
+            f"""CREATE TABLE IF NOT EXISTS '{self.table_name}' (
+                {self._key_names} ,
+                value_,
+                UNIQUE({self._key_names}, value_)
+                ON CONFLICT REPLACE)"""
+        )
+        con.commit()
+        con.close()
+
+    def _populate_from_sql(self):
+        con = sqlite3.connect(self.database)
+        cur = con.cursor()
+        cur.execute(
+            f"SELECT {self._key_names}, value_ FROM '{self.table_name}'"
+        )
+        tuple_results = cur.fetchall()
+        store = {}
+
+        for result in tuple_results:
+            keys = tuple(
+                literal_eval(key) for key in result[:-1]
+            )
+            value = result[-1]
+            store.setdefault(keys, set()).add(literal_eval(value))
+
+        self._store = store
+        self._cache_valid = True
+
+    def __getitem__(self, keys):
+        if len(keys) != self.depth: raise KeyError
+        if not self._cache_valid:
+            self._populate_from_sql()
+        try:
+            return frozenset(self._store[tuple(keys)])
+        except:
+            return frozenset()
+
+    def add(self, *keys, value):
+        # test validity
+        if any(key != literal_eval(repr(key))
+                for key in keys)\
+            or value != literal_eval(repr(value)):
+            raise ValueError
+
+        if len(keys) != self.depth: raise KeyError
+
+        key_strs = tuple(repr(key) for key in keys)
+
+        con = sqlite3.connect(self.database)
+        cur = con.cursor()
+        cur.execute(
+            f"""INSERT INTO '{self.table_name}'
+            VALUES ({','.join(['?'] * self.depth)}, ?)""",
+            key_strs + ((repr(value),))
+        )
+        con.commit()
+        con.close()
+
+        self._store.setdefault(tuple(keys), set()).add(value)
+
+    def __setitem__(self, keys, value_set):
+
+        # test validity
+        if (any(key != literal_eval(repr(key))
+                for key in keys)
+            or any(
+                value != literal_eval(repr(value)) for value in value_set
+                )
+            ):
+            raise ValueError
+
+        if len(keys) != self.depth: raise KeyError
+
+        key_strs = tuple(repr(key) for key in keys)
+
+        con = sqlite3.connect(self.database)
+        cur = con.cursor()
+
+        for value in value_set:
+
+            cur.execute(
+                f"""INSERT INTO '{self.table_name}'
+                VALUES ({','.join(['?'] * self.depth)}, ?)""",
+                key_strs + ((repr(value),))
+            )
+
+        con.commit()
+        con.close()
+        self._store[tuple(keys)] = set(value_set)
+
+    def remove(self, *keys, value):
+        if len(keys) != self.depth: raise KeyError
+
+        key_strs = tuple(repr(key) for key in keys)
+
+        con = sqlite3.connect(self.database)
+        cur = con.cursor()
+        cur.execute(
+            f"""DELETE FROM '{self.table_name}' WHERE
+            {' AND '.join(key+' = ?' for key in self._keys)}
+            AND value_ = ?""",
+            key_strs + ((repr(value),))
+        )
+        con.commit()
+        con.close()
+        try:
+            self._store[tuple(keys)].remove(value)
+        except KeyError:
+            pass
+
+    def __delitem__(self, keys):
+        if len(keys) != self.depth: raise KeyError
+
+        key_strs = tuple(repr(key) for key in keys)
+
+        con = sqlite3.connect(self.database)
+        cur = con.cursor()
+        cur.execute(
+            f"""DELETE FROM '{self.table_name}' WHERE
+            {' AND '.join(key+' = ?' for key in self._keys)}""",
+            key_strs
+        )
+        con.commit()
+        con.close()
+        try:
+            del self._store[tuple(keys)]
+        except KeyError:
+            pass
+
+    def __iter__(self):
+        if not self._cache_valid:
+            self._populate_from_sql()
+        return iter(self._store)
+
+    def __len__(self):
+        if not self._cache_valid:
+            self._populate_from_sql()
+        return len(self._store)
+
+    def __contains__(self, keys) -> bool:
+        if not self._cache_valid:
+            self._populate_from_sql()
+        return tuple(keys) in self._store
+
+
+def manserv_or_owner(ctx):
     try:
         manag_guild_perm = ctx.author.guild_permissions.manage_guild
-        logger.info(f"Permission requested for {ctx.command.name} by"
-            f" {ctx.author.name} in {ctx.channel.name}")
+        # logger.info(f"Permission requested for {ctx.command.name} by"
+        #     f" {ctx.author.name} in {ctx.channel.name}")
         permissed = manag_guild_perm or ctx.author.id == ctx.bot.owner_id
-        logger.info(f"manage_guild permission: {manag_guild_perm}."
-            f" Is owner: {ctx.author.id == ctx.bot.owner_id}")
+        # logger.info(f"manage_guild permission: {manag_guild_perm}."
+        #     f" Is owner: {ctx.author.id == ctx.bot.owner_id}")
     # if author returns none (eg. user leaves the guild same instant.)
     except AttributeError as e:
         logger.info(e)
@@ -139,7 +338,7 @@ class RateLimit:
         self.pool = collections.deque(maxlen=limit)
         self._lock = asyncio.Lock()
         self.logger = logging.getLogger("clipping.bot.ratelimit")
-    
+
     def _wait_time(self):
         if len(self.pool) < self.pool.maxlen:
             return 0
@@ -149,7 +348,7 @@ class RateLimit:
                 return 0
             else:
                 return self.interval - diff
-    
+
     def skip(self, cor):
         "Returns coroutine that will skip operation if within ratelimit."
         @functools.wraps(cor)
@@ -171,7 +370,7 @@ class WeighedRateLimit:
         self.pool = collections.deque()
         self._lock = asyncio.Lock()
         self.logger = logging.getLogger("clipping.bot")
-    
+
     def _total_weight(self):
         return sum(weight for _, weight in self.pool)
 
@@ -179,7 +378,7 @@ class WeighedRateLimit:
         extra = self._total_weight() - self.limit
         while extra > 0:
             extra -= self.pool.popleft()[1]
-                
+
     def add(self, weight):
         self.pool.append((dt.datetime.now(), weight))
 

@@ -54,7 +54,7 @@ class Clipping(commands.Cog):
         self.description = help_strings.clipping_cog_description
 
     clip_brief = "Clip!"
-    @commands.group(aliases=["c", "audio", "a"], invoke_without_command=True,
+    @commands.group(name="c", aliases=["a"], invoke_without_command=True,
         help=help_strings.clip_command_description, brief = clip_brief)
     async def clip(self, ctx,
             relative_start = "...",
@@ -90,7 +90,7 @@ f"""Create a screenshot. sample usage:
 `ss bl`       | Screenshot the bottomleft quadrant.
 Valid position arguments: `everyone`, `{"`, `".join(CROP_STR.keys())}`""")
     screenshot_brief = "Create a screenshot"
-    @commands.command(name="ss", aliases=["s"], help=screenshot_help, brief=screenshot_brief)
+    @commands.command(name="ss", help=screenshot_help, brief=screenshot_brief)
     async def screenshot(self, ctx, crop:str="face"):
         receive_time = dt.datetime.now()
 
