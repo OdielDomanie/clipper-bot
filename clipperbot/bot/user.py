@@ -10,7 +10,7 @@ from discord.ext import commands
 from ..video import clip
 from ..video.clip import CROP_STR
 from ..video.download import StreamDownload
-from ..utils import timedelta_to_str, hour_floor_diff
+from ..utils import timedelta_to_str
 from ..webserver import serveclips
 from ..video import facetracking
 from . import help_strings
