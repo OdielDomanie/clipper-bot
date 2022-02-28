@@ -14,11 +14,9 @@ def setup(bot: "ClipBot"):
     bot.add_cog(Admin(bot))
 
 
-class Admin(commands.Cog): 
-    """Available with \"Manage Server\" permission, the same permission required to add the bot.
-Use `role_permission add Admin <role>` command to allow a role to use these commands as well."""
-
+class Admin(commands.Cog):
     def __init__(self, bot: "ClipBot"):
+        self.description = help_strings.admin_cog_description
         self.bot = bot
         self.register_lock = asyncio.Lock()
 
@@ -147,14 +145,8 @@ Use `role_permission add Admin <role>` command to allow a role to use these comm
         await ctx.send(f"Roles with admin permissions: {role_names}")
 
     allow_link_brief = "Should the bot post big clips as links."
-    allow_link_help = (
-"If allowed, the bot can post clips that are too large to be uploaded"
-" directly as attachments as temporary links to a self hosted webserver"
-" instead.\
-False by default. Valid arguments: `true`, `false`"
-)
     @commands.command(
-        help=allow_link_help,
+        help=help_strings.allow_link_description,
         brief=allow_link_brief
     )
     async def allow_links(self, ctx, allow: str):
@@ -304,12 +296,9 @@ False by default. Valid arguments: `true`, `false`"
 
         return chn_url
 
-    reset_help = \
-    "Clear the internal download cache, making everything before this point un-clippable."\
-    "Only use when absolutely necessary please."
     @commands.command(
         brief="",
-        help=reset_help
+        help=help_strings.reset_description
     )
     async def reset(self, ctx):
         stream_download = self.bot.streams[ctx.channel]

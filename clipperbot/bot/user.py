@@ -92,15 +92,10 @@ class Clipping(commands.Cog):
             ctx, from_time, duration, audio_only, relative_start=relative_start
         )
 
-    screenshot_help = (
-f"""Create a screenshot. sample usage:
-`ss`          | Screenshot cropped to the face.
-`ss everyone` | Screenshot everyone's faces.
-`ss whole`    | Screenshot the whole frame.
-`ss bl`       | Screenshot the bottomleft quadrant.
-Valid position arguments: `everyone`, `{"`, `".join(CROP_STR.keys())}`""")
     screenshot_brief = "Create a screenshot"
-    @commands.command(name="ss", help=screenshot_help, brief=screenshot_brief)
+    @commands.command(
+        name="ss", help=help_strings.screenshot_description, brief=screenshot_brief
+    )
     async def screenshot(self, ctx, crop: str = "face"):
         receive_time = dt.datetime.now()
 
@@ -213,7 +208,9 @@ Assume the stream started at the hour mark.""")
         await self._create_n_send_clip(ctx, from_time, duration, audio_only)
 
     clip_sh_brief = "Reply to a clip to adjust it."
-    @commands.command(aliases=["adj"], help=help_strings.adjust_command_description, brief=clip_sh_brief)
+    @commands.command(
+        aliases=["adj"], help=help_strings.adjust_command_description, brief=clip_sh_brief
+    )
     async def adjust(
         self,
         ctx,
