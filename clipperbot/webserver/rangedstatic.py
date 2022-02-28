@@ -48,7 +48,7 @@ def ranged(
 def Ranged_Static_Directory(directory):
     async def rs_directory_app(scope, receive, send) -> StreamingResponse:
         assert scope['type'] == 'http'
-        path:str = scope["path"]
+        path: str = scope["path"]
 
         if path.endswith(".mp4"):
             media_type = 'video/mp4'
@@ -70,7 +70,10 @@ def Ranged_Static_Directory(directory):
         try:
             file = open(path, "rb")
         except FileNotFoundError:
-            await PlainTextResponse(content="Thats'a a 404.\nClip not present :(", status_code=404)(scope, receive, send)
+            await PlainTextResponse(
+                content="Thats'a a 404.\nClip not present :(",
+                status_code=404
+            )(scope, receive, send)
             return
 
         file_size = path.stat().st_size
@@ -90,15 +93,17 @@ def Ranged_Static_Directory(directory):
 
             content_ranges = content_range.split('=')[-1]
 
-            range_start, range_end, *_ = map(str.strip, (content_ranges + '-').split('-'))
+            range_start, range_end, *_ = map(
+                str.strip, (content_ranges + '-').split('-')
+            )
 
             range_start = max(0, int(range_start)) if range_start else 0
-            range_end   = min(file_size - 1, int(range_end)) if range_end else file_size - 1
+            range_end = min(file_size - 1, int(range_end)) if range_end else file_size-1
 
             content_length = (range_end - range_start) + 1
 
             try:
-                file = ranged(file, start = range_start, end = range_end + 1)
+                file = ranged(file, start=range_start, end=range_end + 1)
             except (OSError, ValueError):
                 await Response(status_code=404)(scope, receive, send)
                 return
@@ -109,8 +114,8 @@ def Ranged_Static_Directory(directory):
 
         response = StreamingResponse(
             file,
-            media_type = media_type,
-            status_code = status_code,
+            media_type=media_type,
+            status_code=status_code,
         )
 
         response.headers.update({
@@ -120,5 +125,5 @@ def Ranged_Static_Directory(directory):
         })
 
         await response(scope, receive, send)
-    
+
     return rs_directory_app
