@@ -3,8 +3,12 @@ import logging
 import datetime as dt
 import os
 from discord import TextChannel
-from ..video.download import (StreamDownload, 
-    wait_for_stream, RateLimited, sanitize_vid_url)
+from ..video.download import (
+    StreamDownload,
+    wait_for_stream,
+    RateLimited,
+    sanitize_vid_url,
+)
 from .. import utils
 from ..utils import clean_space
 
@@ -14,7 +18,7 @@ from .. import POLL_INTERVAL
 logger = logging.getLogger("clipping.botstreams")
 
 
-async def listen(bot, txtchn:TextChannel, chn_url):
+async def listen(bot, txtchn: TextChannel, chn_url):
     """Starts a stream download when channel goes live.
     Handles sharing the download and cleanup.
     """
@@ -29,20 +33,20 @@ async def listen(bot, txtchn:TextChannel, chn_url):
         except Exception as e:
             logger.exception(e)
             return e
-        
+
         try:
             await create_stream(bot, txtchn, vid_url, title, start_time=start_time)
-        except RateLimited:          
-                logger.critical(f"Waiting {2 ** ratelimit} minutes).")
-                await asyncio.sleep(2 ** ratelimit * 60)
-                ratelimit += 1
+        except RateLimited:
+            logger.critical(f"Waiting {2 ** ratelimit} minutes).")
+            await asyncio.sleep(2 ** ratelimit * 60)
+            ratelimit += 1
         except Exception:
             await asyncio.sleep(POLL_INTERVAL)
-        
+
         logger.info("Continuing listening.")
 
 
-async def one_time_listen(bot, txtchn:TextChannel, vid_url):
+async def one_time_listen(bot, txtchn: TextChannel, vid_url):
     "Like `listen`, but returns when the stream ends and reraises exceptions."
     global ratelimit
     logger.info(f"One-time-listening to {vid_url} on {txtchn}.")
@@ -53,8 +57,10 @@ async def one_time_listen(bot, txtchn:TextChannel, vid_url):
         if website != "twspace":
             msg = await stream_will_start_msg(txtchn, vid_url)
             vid_url, title, start_time = await wait_for_stream(vid_url)
-            try: await msg.delete()
-            except Exception as e: logger.exception(e)
+            try:
+                await msg.delete()
+            except Exception as e:
+                logger.exception(e)
 
     except ValueError as e:
         logger.error(str(e))
@@ -62,17 +68,17 @@ async def one_time_listen(bot, txtchn:TextChannel, vid_url):
     except Exception as e:
         logger.exception(e)
         raise e
-    
+
     try:
         await create_stream(bot, txtchn, vid_url, title, start_time=start_time)
-    except RateLimited:          
+    except RateLimited:
         logger.critical(f"Ratelimited at {vid_url}, {ratelimit}.")
         raise
 
 
 ratelimit = 0
 async def create_stream(bot, txtchn, vid_url, title, start_time):
-    """Creates and starts (if necessary) 
+    """Creates and starts (if necessary)
     and registers a stream to a text channel,
     cleans up and returns when the stream ends."""
     global ratelimit
@@ -101,16 +107,22 @@ async def create_stream(bot, txtchn, vid_url, title, start_time):
             ratelimit = max(ratelimit, 0)
     except Exception as e:
         logger.exception(e)
-        try: await stream_stopped_msg(txtchn, title, vid_url, e)
-        except Exception: pass
+        try:
+            await stream_stopped_msg(txtchn, title, vid_url, e)
+        except Exception:
+            pass
         raise
     else:
-        try: await stream_stopped_msg(txtchn, title, vid_url)
-        except Exception: pass
-    finally:
+        try:
+            await stream_stopped_msg(txtchn, title, vid_url)
+        except Exception:
+            pass
 
-        try: bot.active_files.remove(stream.filepath)
-        except Exception: pass
+    finally:
+        try:
+            bot.active_files.remove(stream.filepath)
+        except Exception:
+            pass
 
 
 # Prevent spamming in the case of a bug, as these messages can be sent
@@ -118,31 +130,36 @@ async def create_stream(bot, txtchn, vid_url, title, start_time):
 # The constants should be replaced by configs.
 RT_TIME = dt.timedelta(hours=8)
 RT_REQS = 5
-auto_msg_ratelimits = {}  # {channel_id: RateLimit}
-async def stream_started_msg(txtchn:TextChannel, title, vid_url):
+auto_msg_ratelimits: dict[int, utils.RateLimit] = {}  # {channel_id: RateLimit}
+async def stream_started_msg(txtchn: TextChannel, title, vid_url):
     logger.info(f"Stream {title} ({vid_url}) started at"
-        f" {txtchn.guild.name}/{txtchn.name}.")
+                f" {txtchn.guild.name}/{txtchn.name}.")
     try:
-        rate_limit = auto_msg_ratelimits.setdefault(txtchn.id, utils.RateLimit(RT_TIME, RT_REQS))
+        rate_limit = auto_msg_ratelimits.setdefault(
+            txtchn.id,
+            utils.RateLimit(RT_TIME, RT_REQS),
+        )
         skipping_msg = rate_limit.skip(txtchn.send)
         await skipping_msg(f"Capturing stream: {title} (<{vid_url}>)")
     except Exception as e:
         logger.error(f"Can't send \"stream started\" message: {e}")
 
 
-async def stream_will_start_msg(txtchn:TextChannel, vid_url):
+async def stream_will_start_msg(txtchn: TextChannel, vid_url):
     try:
-        rate_limit = auto_msg_ratelimits.setdefault(txtchn.id, utils.RateLimit(RT_TIME, RT_REQS))
+        rate_limit = auto_msg_ratelimits.setdefault(
+            txtchn.id,
+            utils.RateLimit(RT_TIME, RT_REQS)
+        )
         skipping_msg = rate_limit.skip(txtchn.send)
         return await skipping_msg(f"Waiting for the stream at <{vid_url}>")
     except Exception as e:
         logger.error(f"Can't send \"stream will start\" message: {e}")
 
 
-
-async def stream_stopped_msg(txtchn:TextChannel, title, vid_url, exception=None):
+async def stream_stopped_msg(txtchn: TextChannel, title, vid_url, exception=None):
     logger.info(f"Stream {title} ({vid_url}) stopped at"
-        f" {txtchn.guild.name}/{txtchn.name}.")
+                f" {txtchn.guild.name}/{txtchn.name}.")
     # try:
     #     if isinstance(exception, RateLimited):
     #         await auto_msg_ratelimits.setdefault(
