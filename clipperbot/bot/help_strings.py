@@ -44,7 +44,9 @@ c fromstart 1:30:00 90  | clip from 1:30:00 to 1:31:30"""
 
 
 adjust_command_description = \
-f"""Reply to a clip to post it again with modified start point and duration.
+f"""Instead of using this command, you can edit the original command directly!
+
+Reply to a clip to post it again with modified start point and duration.
 Also consider deleting the original clip if you don't need it.
 
 Sample Usage:
