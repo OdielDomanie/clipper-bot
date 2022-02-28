@@ -191,7 +191,6 @@ class Clipping(commands.Cog):
         aliases=["adj"],
         help=help_strings.adjust_command_description,
         brief=adjust_brief,
-        enabled=False,
     )
     async def adjust(
         self,
