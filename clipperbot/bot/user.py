@@ -207,9 +207,11 @@ Assume the stream started at the hour mark.""")
         audio_only = ctx.invoked_parents[0] in ["audio", "a"]
         await self._create_n_send_clip(ctx, from_time, duration, audio_only)
 
-    clip_sh_brief = "Reply to a clip to adjust it."
+    adjust_brief = "Reply to a clip to adjust it."
     @commands.command(
-        aliases=["adj"], help=help_strings.adjust_command_description, brief=clip_sh_brief
+        aliases=["adj"],
+        help=help_strings.adjust_command_description,
+        brief=adjust_brief,
     )
     async def adjust(
         self,
