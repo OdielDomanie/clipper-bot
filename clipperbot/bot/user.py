@@ -184,29 +184,6 @@ class Clipping(commands.Cog):
 
         await self._create_n_send_clip(ctx, from_start, duration, audio_only)
 
-    clip_sh_help = (
-f"""Clip with timestamp relative to the start of the stream.
-Assume the stream started at the hour mark.""")
-    clip_sh_brief = "Like `s`, but assume stream started at the hour mark."
-    # Disabled as it bloats UI
-    @clip.command(
-        help=clip_sh_help,
-        brief=clip_sh_brief,
-        enabled=False,
-    )
-    async def sh(self, ctx, from_start, duration="..."):
-        from_start = to_timedelta(from_start)
-        if duration == "...":
-            duration = self.bot.def_clip_duration
-        else:
-            duration = to_timedelta(duration)
-
-        stream = self.bot.streams[ctx.channel]
-        from_time = from_start - hour_floor_diff(stream.start_time)
-
-        audio_only = ctx.invoked_parents[0] in ["audio", "a"]
-        await self._create_n_send_clip(ctx, from_time, duration, audio_only)
-
     adjust_brief = "Reply to a clip to adjust it."
     @commands.command(
         aliases=["adj"],
