@@ -1,4 +1,5 @@
 from __future__ import annotations
+import asyncio
 import collections
 import dataclasses
 import datetime as dt
@@ -52,6 +53,7 @@ class Clipping(commands.Cog):
         self.sent_clips: collections.deque[Clip] = collections.deque(maxlen=1000)
 
         self.description = help_strings.clipping_cog_description
+        self.edit_lock: dict[discord.User, asyncio.Lock] = {}
 
     clip_brief = "Clip!"
     @commands.group(
@@ -189,6 +191,7 @@ class Clipping(commands.Cog):
         aliases=["adj"],
         help=help_strings.adjust_command_description,
         brief=adjust_brief,
+        enabled=False,
     )
     async def adjust(
         self,
@@ -225,32 +228,31 @@ class Clipping(commands.Cog):
         )
 
     @commands.Cog.listener()
-    async def on_message_edit(self, before:discord.Message, after:discord.Message):
+    async def on_message_edit(self, before: discord.Message, after: discord.Message):
         command_edit = False
         for sent_clip in self.sent_clips:
             if before == sent_clip.command_ctx.message:
                 command_edit = True
                 break
         if command_edit:
-            args:list[str] = after.content.split()
+            args: list[str] = after.content.split()
 
             if len(args) < 2:
                 return
             # was it called with c, or with c fromstart
             if args[1] not in {"fromstart", "s"}:
-            # if sent_clip.relative_start is not None: # with plain c
                 # not enough arguments
                 if len(args) < 2:
                     return
 
                 new_rel_start = -to_timedelta(args[1])
-                old_args = sent_clip.command_ctx.message.content.split()
-                if len(old_args) >= 3:
-                    old_rel_start = to_timedelta(old_args[2])
+                old_args = sent_clip.command_str.split()
+                if len(old_args) >= 2:
+                    old_rel_start = -to_timedelta(old_args[1])
                 else:
-                    old_rel_start = self.bot.def_clip_duration
+                    old_rel_start = -self.bot.def_clip_duration
 
-                new_ftime = sent_clip.from_time - (new_rel_start - old_rel_start)
+                new_ftime = sent_clip.from_time + (new_rel_start - old_rel_start)
                 if len(args) >= 3:  # Duration specified
                     new_duration = to_timedelta(args[2])
                 else:
@@ -259,9 +261,6 @@ class Clipping(commands.Cog):
                 # not enough arguments
                 if len(args) < 3:
                     return
-                # if the command is still there
-                if args[0] not in {"c", "a"} and args[1] in {"fromstart", "s"}:
-                    return                
 
                 new_ftime = to_timedelta(args[2])
                 if len(args) >= 4:  # Duration specified
@@ -269,16 +268,24 @@ class Clipping(commands.Cog):
                 else:
                     new_duration = self.bot.def_clip_duration
 
-        # Instead of sending new, edit?
-        # It might be needed to send the media in embed?
-        # It might be needed to send the new video to another channel and
-        # replace the links.
-            new_clip = await self._create_n_send_clip(sent_clip.command_ctx, new_ftime,
-                new_duration, audio_only=sent_clip.audio_only,
-                relative_start=None)
-
-            self.sent_clips.remove(sent_clip)
-            self.sent_clips.append(new_clip)
+            async with self.edit_lock.setdefault(
+                sent_clip.command_ctx.author, asyncio.Lock()
+            ):
+                # Instead of sending new, edit?
+                # It might be needed to send the media in embed?
+                # It might be needed to send the new video to another channel and
+                # replace the links.
+                new_clip = await self._create_n_send_clip(
+                    sent_clip.command_ctx,
+                    new_ftime,
+                    new_duration,
+                    audio_only=sent_clip.audio_only,
+                    relative_start=None,
+                )
+                if new_clip is not None:
+                    await sent_clip.msg.delete()
+                    self.sent_clips.remove(sent_clip)
+                    self.sent_clips.append(new_clip)
 
     def _calc_time(self, ctx, relative_start, duration):
         if relative_start == "...":
@@ -430,7 +437,8 @@ class Clipping(commands.Cog):
                 duration,
                 audio_only,
                 ctx,
-                relative_start=relative_start
+                ctx.message.content,
+                relative_start=relative_start,
             )
             self.sent_clips.append(sent_clip)
             return sent_clip
@@ -544,6 +552,7 @@ class Clip:
     duration: dt.timedelta
     audio_only: bool
     command_ctx: commands.Context
+    command_str: str
     relative_start: typing.Union[dt.timedelta, None] = None
 
     def __eq__(self, b) -> bool:
