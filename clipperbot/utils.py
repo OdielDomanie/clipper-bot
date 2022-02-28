@@ -1,3 +1,4 @@
+from __future__ import annotations
 import asyncio
 import sqlite3
 import typing
@@ -27,7 +28,7 @@ class PersistentDict(MutableMapping):
         table_name: str,
         str_to_key,
         str_to_val: Callable[[str], Any],
-        cache_duration: float = None,
+        cache_duration: float | None = None,
     ):
         self.database = database
         self.table_name = table_name
@@ -457,7 +458,7 @@ def timedelta_to_str(td: dt.timedelta, colon=False, millisecs=True, show_hours=F
         minutes %= 60
         res = f"{hours}{seperator}{minutes:02}{seperator}{seconds:02}"
         show_hours = hours != 0
-    if not show_hours:
+    else:
         res = f"{minutes:02}{seperator}{seconds:02}"
     if millisecs:
         return res + f".{micro_secs:03}"

@@ -8,7 +8,7 @@ from discord.ext import commands
 
 class DeletableMessages(commands.Cog):
     def __init__(self, bot: commands.Bot, stored_message_count):
-        self.messages: deque[discord.Message] = deque(maxlen=stored_message_count)
+        self.messages: deque[tuple] = deque(maxlen=stored_message_count)
         self.logger = logging.getLogger("clipping.bot")
 
     @commands.Cog.listener()

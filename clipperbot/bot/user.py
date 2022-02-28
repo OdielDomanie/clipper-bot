@@ -199,7 +199,7 @@ class Clipping(commands.Cog):
         try:
             start_adjust = to_timedelta(start_adjust)
         except Exception as e:
-            raise commands.ConversionError from e
+            raise commands.UserInputError from e
 
         if ctx.message.reference is None:
             await ctx.reply("You need to reply to the clip to adjust.")

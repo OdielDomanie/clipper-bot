@@ -1,3 +1,4 @@
+from __future__ import annotations
 import asyncio
 import datetime as dt
 import logging
@@ -20,7 +21,7 @@ async def clip(
     audio_only=False,
     relative_start=None,
     website="youtube",
-    tempdir: str = None,
+    tempdir: str | None = None,
     *,
     clip_dir=CLIP_DIR,
     ffmpeg=FFMPEG,

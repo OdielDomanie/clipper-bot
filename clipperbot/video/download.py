@@ -181,7 +181,7 @@ class StreamDownload:
 
             await self._yt_download()
 
-        elif "twspace" == self.website:
+        elif twspace_support and "twspace" == self.website:
 
             temp_dir, fpath, dl_task = twspace_download(self.download_dir, self.vid_url)
             self.tempdir = temp_dir
@@ -215,7 +215,7 @@ class StreamDownload:
             for task_ in pending:
                 task_.cancel()
             # terminate process
-            await self.stop_recording()
+            await self.stop_process()
             raise TimeoutError
         elif yt_error in done:
             yt_error.result()  # raise the exception
@@ -576,25 +576,26 @@ async def _read_yt_error(stream: asyncio.StreamReader):
             raise RateLimited
 
 
-def twspace_download(download_dir, url: str):
-    """Returns a directory where the file might be, the final file destination,
-    and the download task."""
-    format_str = os.path.join(download_dir, FormatInfo.DEFAULT_FNAME_FORMAT)
-    space_dl = TwspaceDL.from_space_url(url, format_str, download_dir)
-    temp_dir = space_dl.tmpdir
-    fpath = space_dl.filename
+if twspace_support:
+    def twspace_download(download_dir, url: str):
+        """Returns a directory where the file might be, the final file destination,
+        and the download task."""
+        format_str = os.path.join(download_dir, FormatInfo.DEFAULT_FNAME_FORMAT)
+        space_dl = TwspaceDL.from_space_url(url, format_str, download_dir)
+        temp_dir = space_dl.tmpdir
+        fpath = space_dl.filename
 
-    dl_task = asyncio.create_task(_twspace_download_process(space_dl))
+        dl_task = asyncio.create_task(_twspace_download_process(space_dl))
 
-    return temp_dir, fpath, dl_task
+        return temp_dir, fpath, dl_task
 
-async def _twspace_download_process(space_dl: TwspaceDL):
-    try:
-        await asyncio.to_thread(space_dl.download)
-    finally:
-        if space_dl.ffmpeg_pid is not None:
-            try:
-                ffmpeg_proc = psutil.Process(space_dl.ffmpeg_pid)
-                ffmpeg_proc.kill()
-            except Exception:
-                pass
+    async def _twspace_download_process(space_dl: TwspaceDL):
+        try:
+            await asyncio.to_thread(space_dl.download)
+        finally:
+            if space_dl.ffmpeg_pid is not None:
+                try:
+                    ffmpeg_proc = psutil.Process(space_dl.ffmpeg_pid)
+                    ffmpeg_proc.kill()
+                except Exception:
+                    pass
