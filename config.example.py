@@ -1,34 +1,29 @@
-import sys, os
+import sys
+import os
 import datetime as dt
 import logging
+import dotenv
 
 
 DOWNLOAD_DIR = "downloads/"
-MAX_DOWNLOAD_STORAGE = 20 * 1000 ** 3
+MAX_DOWNLOAD_STORAGE = 2 * 1024 ** 3
 
 CLIP_DIR = "clips/"
-MAX_CLIP_STORAGE = 8 * 1000 ** 3
+MAX_CLIP_STORAGE = 1 * 1024 ** 3
 
 
-DEF_CLIP_DURATION = dt.timedelta(seconds= 10 )
-MAX_DURATION = dt.timedelta(minutes= 5 )
-MAX_STREAM_TIME = 6 * 60 * 60 
+DEF_CLIP_DURATION = dt.timedelta(seconds=10)
+MAX_DURATION = dt.timedelta(minutes=5)
 
 DATABASE = "database.db"
 
 YTDL_EXEC = os.path.join(os.path.dirname(sys.executable), "youtube-dl")
 FFMPEG = "ffmpeg"
 
-# How often youtube is polled for a stream going live, in seconds.
 POLL_INTERVAL = 60
 
 DEFAULT_PREFIX = "__"
 
-OWNER_ID = 0
-TOKEN = ""
-
-# IP adress for the webserver.
-IP_ADDRESS = "0.0.0.0"
 PORT = 8080
 URL_PORT = 80  # Different from PORT in case of port forwarding
 
@@ -37,3 +32,10 @@ LOG_LVL = logging.INFO
 
 UVICORN_LOG_FILE = "webserver.log"
 UVICORN_LOG_LVL = logging.INFO
+
+
+#  These variables load from environment variables
+dotenv.load_dotenv(".env")
+OWNER_ID = int(os.getenv("OWNER_ID"))
+TOKEN = os.getenv("TOKEN")
+IP_ADDRESS = os.getenv("IP_ADDRESS")

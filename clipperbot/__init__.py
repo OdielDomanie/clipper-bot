@@ -5,7 +5,6 @@ from config import (  # noqa: F401
     MAX_CLIP_STORAGE,
     DEF_CLIP_DURATION,
     MAX_DURATION,
-    MAX_STREAM_TIME,
     DATABASE,
     YTDL_EXEC,
     FFMPEG,

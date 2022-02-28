@@ -18,7 +18,6 @@ class ClipBot(commands.Bot):
         *,
         database: str,
         possible_link_perms={"false", "true"},
-        def_clip_duration=DEF_CLIP_DURATION,
         **options
     ):
 
@@ -36,7 +35,7 @@ class ClipBot(commands.Bot):
 
         # self.case_insensitive = True
 
-        self.def_clip_duration = def_clip_duration
+        self.def_clip_duration = DEF_CLIP_DURATION
         self.max_clip_duration = MAX_DURATION
 
         self.default_prefix = default_prefix
