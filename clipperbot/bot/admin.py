@@ -1,10 +1,8 @@
 import asyncio
 import os
 from discord.ext import commands
-from .. import utils
 from . import streams
-from ..video.download import (sanitize_chnurl, sanitize_vid_url,
-    fetch_yt_metadata, RateLimited)
+from ..video.download import (sanitize_chnurl, sanitize_vid_url, RateLimited)
 from . import help_strings
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -12,15 +10,15 @@ if TYPE_CHECKING:
 
 
 # This makes this module a discord.py extension
-def setup(bot:"ClipBot"):
+def setup(bot: "ClipBot"):
     bot.add_cog(Admin(bot))
 
 
-class Admin(commands.Cog):
+class Admin(commands.Cog): 
     """Available with \"Manage Server\" permission, the same permission required to add the bot.
 Use `role_permission add Admin <role>` command to allow a role to use these commands as well."""
 
-    def __init__(self, bot:"ClipBot"):
+    def __init__(self, bot: "ClipBot"):
         self.bot = bot
         self.register_lock = asyncio.Lock()
 
@@ -29,7 +27,7 @@ Use `role_permission add Admin <role>` command to allow a role to use these comm
         help=help_strings.channel_permission_description,
         invoke_without_command=True
     )
-    async def channel_permission(self, ctx:commands.Context):
+    async def channel_permission(self, ctx: commands.Context):
         allowed_commands = set()
         for guild_com_tuple, chn_id in self.bot.command_txtchn_perms.items():
             if ctx.guild.id == guild_com_tuple[0] and ctx.channel.id in chn_id:
@@ -46,14 +44,14 @@ Use `role_permission add Admin <role>` command to allow a role to use these comm
         brief="Enable a command on this text channel.",
         help="Enable a command on this text channel."
     )
-    async def channel_permission_add(self, ctx, command:str):
+    async def channel_permission_add(self, ctx, command: str):
         self.bot.command_txtchn_perms.add(
             ctx.guild.id, command, value=ctx.channel.id
         )
         await self.channel_permission(ctx)
 
     @channel_permission.command(name="remove")
-    async def channel_permission_remove(self, ctx, command:str):
+    async def channel_permission_remove(self, ctx, command: str):
         self.bot.command_txtchn_perms.remove(
             ctx.guild.id, command, value=ctx.channel.id
         )
@@ -64,7 +62,7 @@ Use `role_permission add Admin <role>` command to allow a role to use these comm
         help=help_strings.role_permission_description,
         invoke_without_command=True
     )
-    async def role_permission(self, ctx:commands.Context):
+    async def role_permission(self, ctx: commands.Context):
         allowed_roles = set()
         for guild_com_tuple, role_names in self.bot.command_role_perms.items():
             if ctx.guild.id == guild_com_tuple[0]:
@@ -81,13 +79,16 @@ Use `role_permission add Admin <role>` command to allow a role to use these comm
         help="Enable a command for a role.",
         usage="<command> <role>"
     )
-    async def role_permission_add(self, ctx, command:str, *role:str):
+    async def role_permission_add(self, ctx, command: str, *role: str):
         if len(role) == 0:
-            await ctx.send("Need to specify role: `role_permission add <command> <role>`")
+            await ctx.send(
+                "Need to specify role: `role_permission add <command> <role>`"
+            )
             return
-        role = " ".join(role)
+        role_name = " ".join(role)
         self.bot.command_role_perms.add(
-            ctx.guild.id, command, value=role
+            ctx.guild.id, command,
+            value=role_name
         )
         await self.role_permission(ctx)
 
@@ -95,12 +96,15 @@ Use `role_permission add Admin <role>` command to allow a role to use these comm
         name="remove",
         usage="<command> <role>"
     )
-    async def role_permission_remove(self, ctx, command:str, *role:str):
+    async def role_permission_remove(self, ctx, command: str, *role: str):
         if len(role) == 0:
-            await ctx.send("Need to specify role: `role_permission remove <command> <role>`")
-        role = " ".join(role)
+            await ctx.send(
+                "Need to specify role: `role_permission remove <command> <role>`"
+            )
+        role_name = " ".join(role)
         self.bot.command_role_perms.remove(
-            ctx.guild.id, command, value=role
+            ctx.guild.id, command,
+            value=role_name
         )
         await self.role_permission(ctx)
 
@@ -109,31 +113,38 @@ Use `role_permission add Admin <role>` command to allow a role to use these comm
         help="Give a role permission for \"Admin\" commands.",
         enabled=False
     )
-    async def give_permission(self, ctx, role:str):
+    async def give_permission(self, ctx, role: str):
 
         self.bot.logger.info(f"Setting role perm on {ctx.guild.name}"
-            f" to {role}.")
+                             f" to {role}.")
         self.bot.add_role_perm(ctx.guild.id, role)
 
-        await ctx.send(f"Roles with admin permissions: {', '.join(self.bot.get_role_perm(ctx.guild.id))}")
+        role_names = ', '.join(self.bot.get_role_perm(ctx.guild.id))
+        await ctx.send(f"Roles with admin permissions: {role_names}")
 
-    @commands.command(brief="Remove a role's permission for \"Admin\" commands.",
-        enabled=False)
-    async def remove_permission(self, ctx, role:str):
+    @commands.command(
+        brief="Remove a role's permission for \"Admin\" commands.",
+        enabled=False
+    )
+    async def remove_permission(self, ctx, role: str):
 
         self.bot.logger.info(f"Removing role perm on {ctx.guild.name} to {role}.")
         try:
             self.bot.remove_role_perm(ctx.guild.id, role)
         except KeyError:
             pass
-        await ctx.send(f"Roles with admin permissions: {', '.join(self.bot.get_role_perm(ctx.guild.id))}")
+        role_names = ', '.join(self.bot.get_role_perm(ctx.guild.id))
+        await ctx.send(f"Roles with admin permissions: {role_names}")
 
-    @commands.command(brief="View the roles that have permission for \"Admin\" commands.",
-        enabled=False)
+    @commands.command(
+        brief="View the roles that have permission for \"Admin\" commands.",
+        enabled=False
+    )
     async def role_permissions(self, ctx):
 
         self.bot.get_role_perm(ctx.guild.id)
-        await ctx.send(f"Roles with admin permissions: {', '.join(self.bot.get_role_perm(ctx.guild.id))}")
+        role_names = ', '.join(self.bot.get_role_perm(ctx.guild.id))
+        await ctx.send(f"Roles with admin permissions: {role_names}")
 
     allow_link_brief = "Should the bot post big clips as links."
     allow_link_help = (
@@ -142,22 +153,25 @@ Use `role_permission add Admin <role>` command to allow a role to use these comm
 " instead.\
 False by default. Valid arguments: `true`, `false`"
 )
-    @commands.command(help = allow_link_help, brief = allow_link_brief)
-    async def allow_links(self, ctx, allow:str):
+    @commands.command(
+        help=allow_link_help,
+        brief=allow_link_brief
+    )
+    async def allow_links(self, ctx, allow: str):
 
         allow = allow.lower()
         if allow not in self.bot.possible_link_perms:
             raise commands.BadArgument
 
         self.bot.logger.info(f"Setting link perm on {ctx.guild.name}"
-            f" to {allow}.")
+                             f" to {allow}.")
         self.bot.link_perms[ctx.guild.id] = allow
 
         await ctx.send(f"`Big clips posted as links: {allow}`")
 
     prefix_brief = "Change the channel prefix."
     @commands.command()
-    async def prefix(self, ctx, prefix:str):
+    async def prefix(self, ctx, prefix: str):
         "Change the channel prefix. The default prefix is always available."
         self.bot.prefixes[ctx.guild.id] = prefix
 
@@ -171,7 +185,7 @@ False by default. Valid arguments: `true`, `false`"
             await ctx.send("No channel registered.")
 
     register_brief = "Make clipping available on this text-channel."
-    @commands.command(brief = register_brief)
+    @commands.command(brief=register_brief)
     async def register(self, ctx, channel_url):
         """Make this channel available for clipping.
         When `channel_url` goes live, the bot will automatically start
@@ -192,7 +206,10 @@ False by default. Valid arguments: `true`, `false`"
                 await ctx.reply("The url must be the url to the channel.")
                 return
 
-            await ctx.send(f"Registered <{self.bot.channel_mapping[ctx.channel.id]}> on this channel.")
+            await ctx.send(
+                f"Registered <{self.bot.channel_mapping[ctx.channel.id]}> on this"
+                " channel."
+            )
 
     @commands.command()
     async def unregister(self, ctx):
@@ -204,26 +221,31 @@ False by default. Valid arguments: `true`, `false`"
             except KeyError:
                 await ctx.send(f"No channel registered on {ctx.channel.name}.")
 
-    stream_cancels:dict[str, bool] = {}
+    stream_cancels: dict[str, bool] = {}
     stream_id_counter = 0
 
     @commands.command()
-    async def stream(self, ctx, vid_url:str):
+    async def stream(self, ctx, vid_url: str):
         "Start a one-time capture of a stream from a direct url."
         vid_url = vid_url.strip('<>')
         try:
             vid_url, website = sanitize_vid_url(vid_url)
         except ValueError:
-            await ctx.reply("Only `youtube.com` ,`twitch.tv` or `twitter.com/i/spaces/` urls are supported.")
+            await ctx.reply(
+                "Only `youtube.com` ,`twitch.tv` or `twitter.com/i/spaces/` urls are"
+                " supported."
+            )
             return
 
         old_chn = None
-        try: old_chn = self._unregister(ctx.channel)
-        except KeyError: pass
+        try:
+            old_chn = self._unregister(ctx.channel)
+        except KeyError:
+            pass
 
         stream_task = asyncio.create_task(
             streams.one_time_listen(self.bot, ctx.channel, vid_url),
-            name= "one_time " + str(Admin.stream_id_counter)
+            name="one_time " + str(Admin.stream_id_counter),
         )
         Admin.stream_id_counter += 1
         self.bot.listens[ctx.channel] = stream_task
@@ -248,12 +270,14 @@ False by default. Valid arguments: `true`, `false`"
     async def _register(self, ctx, channel_url):
         self.bot.channel_mapping[ctx.channel.id] = await sanitize_chnurl(channel_url)
         listen_task = asyncio.create_task(
-                    streams.listen(self.bot, ctx.channel, channel_url))
+            streams.listen(self.bot, ctx.channel, channel_url)
+        )
         self.bot.listens[ctx.channel] = listen_task
 
     def _register_wo_sanitize(self, ctx, channel_url):
         listen_task = asyncio.create_task(
-                    streams.listen(self.bot, ctx.channel, channel_url))
+            streams.listen(self.bot, ctx.channel, channel_url)
+        )
         self.bot.listens[ctx.channel] = listen_task
 
     def _unregister(self, txtchn):
@@ -264,7 +288,9 @@ False by default. Valid arguments: `true`, `false`"
 
             task_name = listen_task.get_name()
             if task_name.split()[0] == "one_time":
-                is_cancelled = Admin.stream_cancels.setdefault(task_name.split()[1], False)
+                is_cancelled = Admin.stream_cancels.setdefault(
+                    task_name.split()[1], False
+                )
                 if not is_cancelled:
                     listen_task.cancel()
                     Admin.stream_cancels[task_name.split()[1]] = True
@@ -286,14 +312,11 @@ False by default. Valid arguments: `true`, `false`"
         help=reset_help
     )
     async def reset(self, ctx):
-        "Clear the internal download cache, making everything before this "\
-        "point un-clippable, in case something yab happens on stream. "\
-        "Only use when absolutely necessary please."
         stream_download = self.bot.streams[ctx.channel]
         try:
             os.remove(stream_download.filepath)
         except FileNotFoundError:
             try:
                 os.remove(stream_download.filepath + ".part")
-            except:
+            except FileNotFoundError:
                 pass

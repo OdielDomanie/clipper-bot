@@ -12,40 +12,51 @@ logger = logging.getLogger("clipping.clip")
 
 
 async def clip(
-    stream_filepath:str,
-    title:str,
-    from_time:dt.timedelta,
-    duration:dt.timedelta,
-    stream_start_time:dt.datetime,
+    stream_filepath: str,
+    title: str,
+    from_time: dt.timedelta,
+    duration: dt.timedelta,
+    stream_start_time: dt.datetime,
     audio_only=False,
     relative_start=None,
     website="youtube",
-    tempdir:str=None,
+    tempdir: str = None,
     *,
-    clip_dir = CLIP_DIR,
-    ffmpeg=FFMPEG
-    ):
+    clip_dir=CLIP_DIR,
+    ffmpeg=FFMPEG,
+):
     """Creates a clip file from `stream_filepath`.
     Returns path of the clip file.
     """
     title = title.replace("/", "_")
 
     if stream_filepath.rsplit(".", 1)[:-1] != "webm":
-        extension = ".m4a" if audio_only else ".mp4"  # discord doesn't embed .aac but .m4a
+        # discord doesn't embed .aac but .m4a
+        extension = ".m4a" if audio_only else ".mp4"
     else:
-        extension = ".ogg" if audio_only else ".webm"  # discord doesnt embed audio only webms
+        # discord doesnt embed audio only webms
+        extension = ".ogg" if audio_only else ".webm"
 
     time_stamp = timedelta_to_str(
         hour_floor_diff(stream_start_time) + from_time,
         millisecs=False)
-    clip_filepath = os.path.join(clip_dir,
-        f"{title} {time_stamp}_{duration.total_seconds():.2f}{extension}")
-    
+    clip_filepath = os.path.join(
+        clip_dir,
+        f"{title} {time_stamp}_{duration.total_seconds():.2f}{extension}"
+    )
+
     quick_seek = website == "youtube" or website == "twspace"
 
-    await cut_video(stream_filepath, from_time, duration,
-        clip_filepath, audio_only, ffmpeg, relative_start=relative_start,
-        quickseek=quick_seek, tempdir=tempdir)
+    await cut_video(
+        stream_filepath,
+        from_time,
+        duration,
+        clip_filepath,
+        audio_only, ffmpeg,
+        relative_start=relative_start,
+        quickseek=quick_seek,
+        tempdir=tempdir,
+    )
 
     clean_space(CLIP_DIR, MAX_CLIP_STORAGE)
 
@@ -53,19 +64,24 @@ async def clip(
 
 
 async def cut_video(
-    stream_filepath:str,
-    from_time:dt.timedelta,
-    duration:dt.timedelta,
-    output_path:str,
+    stream_filepath: str,
+    from_time: dt.timedelta,
+    duration: dt.timedelta,
+    output_path: str,
     audio_only=False,
     ffmpeg=FFMPEG,
     relative_start=None,
     quickseek=False,
-    tempdir=None):
+    tempdir=None,
+):
     """ Cuts a video file.
     """
-    logger.debug(f"Creating clip file from {stream_filepath} to {output_path}.\n"
-        f"From: {str(from_time)} {'('+str(relative_start)+') ' if relative_start is not None else ''}for {str(duration)}")
+    logger.debug(
+        f"Creating clip file from {stream_filepath} to {output_path}.\n"
+        f"From: {str(from_time)}"
+        f"{' ('+str(relative_start)+')' if relative_start is not None else ''}"
+        f" for {str(duration)}"
+    )
 
     stream_filepath = find_stream_file(stream_filepath, tempdir)
 
@@ -83,7 +99,8 @@ async def cut_video(
             start_arg = f"-sseof {delayed_start:.3f}"
 
         if quickseek or relative_start is not None:
-            command = (f"{ffmpeg} -y -hide_banner\
+            command = (
+                f"{ffmpeg} -y -hide_banner\
                 {start_arg}\
                 -t {duration.total_seconds():.3f}\
                 -i {shlex.quote(stream_filepath)}\
@@ -93,7 +110,8 @@ async def cut_video(
                 {shlex.quote(output_path)}"
             )
         else:
-            command = (f"{ffmpeg} -y -hide_banner\
+            command = (
+                f"{ffmpeg} -y -hide_banner\
                 -i {shlex.quote(stream_filepath)}\
                 -acodec copy\
                 {'-vn' if audio_only else '-vcodec copy'}\
@@ -105,10 +123,13 @@ async def cut_video(
 
         logger.info(f"Clip cmd: {shlex.join(shlex.split(command))}")
 
-        process = await asyncio.create_subprocess_exec(*shlex.split(command),
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
+        process = await asyncio.create_subprocess_exec(
+            *shlex.split(command),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+        )
 
-        logger.debug(f"Clip process started.")
+        logger.debug("Clip process started.")
 
         ffmpeg_logger = logging.getLogger(logger.name + ".ffmpeg")
         encoding = sys.stdout.encoding if sys.stdout.encoding else "utf-8"
@@ -117,11 +138,11 @@ async def cut_video(
         ffmpeg_logger.debug(str(ffmpeg_out, encoding))
 
         if (return_code := await process.wait()) == 0:
-            logger.debug(f"Clip process finished with 0.")
+            logger.debug("Clip process finished with 0.")
         else:
             logger.error(f"Clip process ended with {return_code}")
             if os.path.isfile(output_path):
-                logger.error(f"However, clip file exists. Trying to continue on")
+                logger.error("However, clip file exists. Trying to continue on")
             else:
                 raise Exception("Clip not created.")
 
@@ -134,16 +155,17 @@ def find_stream_file(fpath, tempdir=None):
         return fpath
     elif os.path.isfile(fpath + ".m4a"):
         return fpath + ".m4a"
-    elif tempdir is not None:        
+    elif tempdir is not None:
         for file in os.listdir(tempdir):
             if file.endswith(".ts"):
                 return os.path.join(tempdir, file)
-    logger.error(f"Clip could not be created:"
-        f" {fpath} not found.")
+    logger.error(
+        f"Clip could not be created: {fpath} not found."
+    )
     raise FileNotFoundError
 
 
-async def create_thumbnail(video_fpath:str, ffmpeg=FFMPEG):
+async def create_thumbnail(video_fpath: str, ffmpeg=FFMPEG):
     "Creates thumbnail from first frame of video on the same dir."
     thumbnail_fpath = video_fpath.rsplit(".", 1)[0] + ".jpg"
 
@@ -152,8 +174,11 @@ async def create_thumbnail(video_fpath:str, ffmpeg=FFMPEG):
 
     logger.info(shlex.join(shlex.split(cmd)))
 
-    process = await asyncio.create_subprocess_exec(*shlex.split(cmd),
-        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
+    process = await asyncio.create_subprocess_exec(
+        *shlex.split(cmd),
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT
+    )
 
     ffmpeg_logger = logging.getLogger(logger.name + ".ffmpeg")
     encoding = sys.stdout.encoding if sys.stdout.encoding else "utf-8"
@@ -164,10 +189,12 @@ async def create_thumbnail(video_fpath:str, ffmpeg=FFMPEG):
     if return_code == 0:
         return thumbnail_fpath
     else:
-        logger.error(f"Thumbnail process for {video_fpath} failed with"
-            f" {return_code}.")
+        logger.error(
+            f"Thumbnail process for {video_fpath} failed with"
+            f" {return_code}."
+        )
         if os.path.isfile(thumbnail_fpath):
-            logger.info(f"However, the file exists.")
+            logger.info("However, the file exists.")
             return thumbnail_fpath
         else:
             return None
@@ -175,13 +202,19 @@ async def create_thumbnail(video_fpath:str, ffmpeg=FFMPEG):
 
 CROP_STR = {
     "whole": "crop=in_w:in_h:0:0",
-    "tl" : "crop=in_w/2:in_h/2:0:0",    
-    "tr" : "crop=in_w/2:in_h/2:in_w/2:0",
-    "bl" : "crop=in_w/2:in_h/2:0:in_h/2",
-    "br" : "crop=in_w/2:in_h/2:in_w/2:in_h/2"
+    "tl": "crop=in_w/2:in_h/2:0:0",
+    "tr": "crop=in_w/2:in_h/2:in_w/2:0",
+    "bl": "crop=in_w/2:in_h/2:0:in_h/2",
+    "br": "crop=in_w/2:in_h/2:in_w/2:in_h/2"
 }
 
-async def create_screenshot(stream_filepath:str, pos, relative_start:dt.timedelta, ffmpeg=FFMPEG) -> bytes:
+async def create_screenshot(
+    stream_filepath: str,
+    pos,
+    relative_start:
+    dt.timedelta,
+    ffmpeg=FFMPEG,
+) -> bytes:
     "Creates a png screenshots and returns it as bytes."
 
     # Check if the stream file has .part appended.
@@ -189,17 +222,25 @@ async def create_screenshot(stream_filepath:str, pos, relative_start:dt.timedelt
     if not os.path.isfile(stream_filepath):
         stream_filepath = stream_filepath.rsplit(".", maxsplit=1)[0]
         if not os.path.isfile(stream_filepath):
-            logger.error(f"Clip could not be created:"
-                f" {stream_filepath} not found.")
+            logger.error(
+                f"Clip could not be created:"
+                f" {stream_filepath} not found."
+            )
             raise FileNotFoundError
 
-    cmd = f"{ffmpeg} -n -sseof {relative_start.total_seconds()-1} -i {shlex.quote(stream_filepath)}\
-        -vframes 1 -filter:v \"{CROP_STR[pos]}\" -c:v png -f image2pipe -"
+    cmd = (
+        f"{ffmpeg} -n -sseof {relative_start.total_seconds()-1}"
+        f"-i {shlex.quote(stream_filepath)}"
+        f"-vframes 1 -filter:v \"{CROP_STR[pos]}\" -c:v png -f image2pipe -"
+    )
 
     logger.info(shlex.join(shlex.split(cmd)))
 
-    process = await asyncio.create_subprocess_exec(*shlex.split(cmd),
-        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    process = await asyncio.create_subprocess_exec(
+        *shlex.split(cmd),
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
 
     ffmpeg_out, ffmpeg_err = await process.communicate()
 
@@ -212,9 +253,11 @@ async def create_screenshot(stream_filepath:str, pos, relative_start:dt.timedelt
     if return_code == 0:
         return ffmpeg_out
     else:
-        logger.error(f"Screenshot process for {stream_filepath} failed with"
-            f" {return_code}.")
-        
+        logger.error(
+            f"Screenshot process for {stream_filepath} failed with"
+            f" {return_code}."
+        )
+
         PNG_SIZE_TRESHOLD = 10_000
         if len(ffmpeg_out) >= PNG_SIZE_TRESHOLD:
             logger.info("However, some data was output, trying to continue.")

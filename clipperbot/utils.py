@@ -21,9 +21,14 @@ class PersistentDict(MutableMapping):
     and writes to it with every set operation.
     The cache goes stale in cache_duration seconds, if not None.
     """
-    def __init__(self, database:str, table_name:str,
-            str_to_key, str_to_val:Callable[[str],Any],
-            cache_duration:float=None):
+    def __init__(
+        self,
+        database: str,
+        table_name: str,
+        str_to_key,
+        str_to_val: Callable[[str], Any],
+        cache_duration: float = None,
+    ):
         self.database = database
         self.table_name = table_name
         self.str_to_key = str_to_key
@@ -73,8 +78,10 @@ class PersistentDict(MutableMapping):
         self._last_cache = time.monotonic()
 
     def _calc_cache_staleness(self):
-        if (self.cache_duration is not None
-            and time.monotonic() - self._last_cache > self.cache_duration):
+        if (
+            self.cache_duration is not None
+            and time.monotonic() - self._last_cache > self.cache_duration
+        ):
             self._cache_valid = False
 
     def __getitem__(self, key):
@@ -85,14 +92,17 @@ class PersistentDict(MutableMapping):
 
     def __setitem__(self, key, value):
         # test validity
-        if not (key == self.str_to_key(str(key))
-            and value == self.str_to_val(str(value))):
+        if not (
+            key == self.str_to_key(str(key))
+            and value == self.str_to_val(str(value))
+        ):
             raise ValueError
 
         con = sqlite3.connect(self.database)
         cur = con.cursor()
         cur.execute(
-            f"INSERT OR REPLACE INTO '{self.table_name}' VALUES (?, ?)", (str(key), str(value))
+            f"INSERT OR REPLACE INTO '{self.table_name}' VALUES (?, ?)",
+            (str(key), str(value))
         )
         con.commit()
         con.close()
@@ -131,9 +141,9 @@ class PersistentSetDict(MutableMapping):
     """
     def __init__(
         self,
-        database:str,
-        table_name:str,
-        depth:int
+        database: str,
+        table_name: str,
+        depth: int
     ):
         self.database = database
         self.table_name = table_name
@@ -192,22 +202,27 @@ class PersistentSetDict(MutableMapping):
         self._cache_valid = True
 
     def __getitem__(self, keys):
-        if len(keys) != self.depth: raise KeyError
+        if len(keys) != self.depth:
+            raise KeyError
         if not self._cache_valid:
             self._populate_from_sql()
         try:
             return frozenset(self._store[tuple(keys)])
-        except:
+        except Exception:
             return frozenset()
 
     def add(self, *keys, value):
         # test validity
-        if any(key != literal_eval(repr(key))
-                for key in keys)\
-            or value != literal_eval(repr(value)):
+        if (
+            any(
+                key != literal_eval(repr(key)) for key in keys
+            )
+            or value != literal_eval(repr(value))
+        ):
             raise ValueError
 
-        if len(keys) != self.depth: raise KeyError
+        if len(keys) != self.depth:
+            raise KeyError
 
         key_strs = tuple(repr(key) for key in keys)
 
@@ -226,15 +241,18 @@ class PersistentSetDict(MutableMapping):
     def __setitem__(self, keys, value_set):
 
         # test validity
-        if (any(key != literal_eval(repr(key))
-                for key in keys)
+        if (
+            any(
+                key != literal_eval(repr(key)) for key in keys
+            )
             or any(
                 value != literal_eval(repr(value)) for value in value_set
-                )
-            ):
+            )
+        ):
             raise ValueError
 
-        if len(keys) != self.depth: raise KeyError
+        if len(keys) != self.depth:
+            raise KeyError
 
         key_strs = tuple(repr(key) for key in keys)
 
@@ -254,7 +272,8 @@ class PersistentSetDict(MutableMapping):
         self._store[tuple(keys)] = set(value_set)
 
     def remove(self, *keys, value):
-        if len(keys) != self.depth: raise KeyError
+        if len(keys) != self.depth:
+            raise KeyError
 
         key_strs = tuple(repr(key) for key in keys)
 
@@ -274,7 +293,8 @@ class PersistentSetDict(MutableMapping):
             pass
 
     def __delitem__(self, keys):
-        if len(keys) != self.depth: raise KeyError
+        if len(keys) != self.depth:
+            raise KeyError
 
         key_strs = tuple(repr(key) for key in keys)
 
@@ -333,7 +353,7 @@ def req_manserv(f: Callable):
 
 
 class RateLimit:
-    def __init__(self, interval:dt.datetime, limit:int):
+    def __init__(self, interval: dt.timedelta, limit: int):
         self.interval = interval
         self.pool = collections.deque(maxlen=limit)
         self._lock = asyncio.Lock()
@@ -364,7 +384,7 @@ class RateLimit:
 
 
 class WeighedRateLimit:
-    def __init__(self, interval:dt.datetime, limit:int):
+    def __init__(self, interval: dt.timedelta, limit: int):
         self.interval = interval
         self.limit = limit
         self.pool = collections.deque()
@@ -383,7 +403,12 @@ class WeighedRateLimit:
         self.pool.append((dt.datetime.now(), weight))
 
 
-def clean_space(directory, max_size:int, no_deletes:typing.Collection[str]=[], _deleteds = None):
+def clean_space(
+    directory,
+    max_size: int,
+    no_deletes: typing.Collection[str] = [],
+    _deleteds=None
+):
     """Deletes files in directory until the total size is
     below max_size in bytes. Files in no_deletes are exempted.
     Returns the set of deleted file names.
@@ -414,13 +439,14 @@ def clean_space(directory, max_size:int, no_deletes:typing.Collection[str]=[], _
             logger.info(f"Deleted {earliest_file}")
             _deleteds.add(earliest_file)
 
-        _deleteds.union( clean_space(directory, max_size, no_deletes) )
+        # TODO: `union` should be `extend`
+        _deleteds.union(clean_space(directory, max_size, no_deletes))
         return _deleteds
     else:
         return _deleteds
 
 
-def timedelta_to_str(td:dt.timedelta, colon=False, millisecs=True, show_hours=False):
+def timedelta_to_str(td: dt.timedelta, colon=False, millisecs=True, show_hours=False):
     "Returns str formatted like \"minutes.seconds.millisecs\"."
     minutes = int(td.total_seconds()) // 60
     seconds = int(td.total_seconds()) % 60
@@ -439,7 +465,8 @@ def timedelta_to_str(td:dt.timedelta, colon=False, millisecs=True, show_hours=Fa
         return res
 
 
-def hour_floor_diff(time:dt.datetime):
+def hour_floor_diff(time: dt.datetime):
     "Difference when rounded down to the nearest hour."
-    return dt.timedelta(minutes=time.minute, seconds=time.second,
-        microseconds=time.microsecond)
+    return dt.timedelta(
+        minutes=time.minute, seconds=time.second, microseconds=time.microsecond
+    )
