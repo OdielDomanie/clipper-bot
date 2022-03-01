@@ -110,11 +110,12 @@ class ClipBot(commands.Bot):
             return False
         roles: list[discord.Role] = member.roles
 
-        if category == "Admin":
-            self.logger.info(f"{member.name}, roles {roles}, tried {alias} .")
+        if category == "Admin" and alias != "help":
+            role_names = [role.name for role in roles]
+            self.logger.info(f"{member.name} tried {alias}. Roles: {role_names}")
 
         if manserv_or_owner(ctx):
-            self.logger.info("is manserv or owner")
+            self.logger.debug("has manage server permission or is owner")
             return True
 
         # Check whether the channel is banned
