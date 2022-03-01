@@ -148,7 +148,11 @@ class StreamDownload:
     actual_start_cache: dict[int, dt.datetime] = {}  # Slow memory leak
     async def get_holodex_start(self, video_id):
         """Waits 7 minutes, then fetches `start_actual` from holodex.net
-        and writes it to `self.actual_start`."""
+        and writes it to `self.actual_start`.
+
+        Holodex API License:
+        https://holodex.stoplight.io/docs/holodex/ZG9jOjM4ODA4NzA-license"""
+
         await asyncio.sleep(7 * 60)
         if video_id not in StreamDownload.actual_start_cache:
             try:
