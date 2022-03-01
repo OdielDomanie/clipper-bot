@@ -12,6 +12,10 @@ from .. import CLIP_DIR, MAX_CLIP_STORAGE, FFMPEG
 logger = logging.getLogger("clipping.clip")
 
 
+def _increment_nice():
+    os.nice(1)
+
+
 async def clip(
     stream_filepath: str,
     title: str,
@@ -128,6 +132,7 @@ async def cut_video(
             *shlex.split(command),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
+            preexec_fn=_increment_nice,
         )
 
         logger.debug("Clip process started.")
@@ -178,7 +183,8 @@ async def create_thumbnail(video_fpath: str, ffmpeg=FFMPEG):
     process = await asyncio.create_subprocess_exec(
         *shlex.split(cmd),
         stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT
+        stderr=asyncio.subprocess.STDOUT,
+        preexec_fn=_increment_nice,
     )
 
     ffmpeg_logger = logging.getLogger(logger.name + ".ffmpeg")
@@ -241,6 +247,7 @@ async def create_screenshot(
         *shlex.split(cmd),
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        preexec_fn=_increment_nice,
     )
 
     ffmpeg_out, ffmpeg_err = await process.communicate()
