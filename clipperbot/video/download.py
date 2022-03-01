@@ -147,9 +147,9 @@ class StreamDownload:
 
     actual_start_cache: dict[int, dt.datetime] = {}  # Slow memory leak
     async def get_holodex_start(self, video_id):
-        """Waits 3 minutes, then fetches `start_actual` from holodex.net
+        """Waits 7 minutes, then fetches `start_actual` from holodex.net
         and writes it to `self.actual_start`."""
-        await asyncio.sleep(3 * 60)
+        await asyncio.sleep(7 * 60)
         if video_id not in StreamDownload.actual_start_cache:
             try:
                 self.logger.info("Fetching data from holodex.")
