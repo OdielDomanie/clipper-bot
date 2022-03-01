@@ -142,7 +142,7 @@ class StreamDownload:
             if self.website == "youtube":
                 try:
                     get_actstart_task.cancel()
-                except AttributeError:
+                except UnboundLocalError:
                     pass
 
     actual_start_cache: dict[int, dt.datetime] = {}  # Slow memory leak
