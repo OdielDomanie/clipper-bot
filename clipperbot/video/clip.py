@@ -231,8 +231,8 @@ async def create_screenshot(
 
     cmd = (
         f"{ffmpeg} -n -sseof {relative_start.total_seconds()-1}"
-        f"-i {shlex.quote(stream_filepath)}"
-        f"-vframes 1 -filter:v \"{CROP_STR[pos]}\" -c:v png -f image2pipe -"
+        f" -i {shlex.quote(stream_filepath)}"
+        f" -vframes 1 -filter:v \"{CROP_STR[pos]}\" -c:v png -f image2pipe -"
     )
 
     logger.info(shlex.join(shlex.split(cmd)))
