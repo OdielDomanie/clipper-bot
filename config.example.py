@@ -6,10 +6,10 @@ import dotenv
 
 
 DOWNLOAD_DIR = "downloads/"
-MAX_DOWNLOAD_STORAGE = 2 * 1024 ** 3
+MAX_DOWNLOAD_STORAGE = 25 * 1024 ** 3
 
 CLIP_DIR = "clips/"
-MAX_CLIP_STORAGE = 1 * 1024 ** 3
+MAX_CLIP_STORAGE = 6 * 1024 ** 3
 
 
 DEF_CLIP_DURATION = dt.timedelta(seconds=10)
@@ -39,3 +39,4 @@ dotenv.load_dotenv(".env")
 OWNER_ID = int(os.getenv("OWNER_ID"))
 TOKEN = os.getenv("TOKEN")
 IP_ADDRESS = os.getenv("IP_ADDRESS")
+HOLODEX_TOKEN = os.getenv("HOLODEX_TOKEN")

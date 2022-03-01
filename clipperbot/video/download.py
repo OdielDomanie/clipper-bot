@@ -23,7 +23,7 @@ except ImportError:
 else:
     twspace_support = True
 
-from .. import DOWNLOAD_DIR, YTDL_EXEC, POLL_INTERVAL
+from .. import DOWNLOAD_DIR, YTDL_EXEC, POLL_INTERVAL, HOLODEX_TOKEN
 
 
 def sanitize_vid_url(vid_url):
@@ -156,7 +156,8 @@ class StreamDownload:
                 async with aiohttp.ClientSession() as session:
                     base_url = "https://holodex.net/api/v2/videos/"
                     url = parse.urljoin(base_url, video_id)
-                    async with session.get(url) as response:
+                    headers = {"X-APIKEY": HOLODEX_TOKEN}
+                    async with session.get(url, headers=headers) as response:
                         resp = await response.json()
                         time_str = resp["start_actual"]
                         StreamDownload.actual_start_cache[video_id] = (

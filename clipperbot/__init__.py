@@ -18,5 +18,6 @@ from config import (  # noqa: F401
     LOG_FILE,
     LOG_LVL,
     UVICORN_LOG_FILE,
-    UVICORN_LOG_LVL
+    UVICORN_LOG_LVL,
+    HOLODEX_TOKEN,
 )
