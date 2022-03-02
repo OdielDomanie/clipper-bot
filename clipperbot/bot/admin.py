@@ -260,9 +260,10 @@ class Admin(commands.Cog):
                 self._register_wo_sanitize(ctx, old_chn)
 
     async def _register(self, ctx, channel_url):
-        self.bot.channel_mapping[ctx.channel.id] = await sanitize_chnurl(channel_url)
+        san_chn_url = await sanitize_chnurl(channel_url)
+        self.bot.channel_mapping[ctx.channel.id] = san_chn_url
         listen_task = asyncio.create_task(
-            streams.listen(self.bot, ctx.channel, channel_url)
+            streams.listen(self.bot, ctx.channel, san_chn_url)
         )
         self.bot.listens[ctx.channel] = listen_task
 
