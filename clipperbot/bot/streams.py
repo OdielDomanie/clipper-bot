@@ -144,7 +144,7 @@ async def create_stream(bot: "ClipBot", txtchn, vid_url, title, start_time):
 # without user prompt.
 # The constants should be replaced by configs.
 RT_TIME = dt.timedelta(hours=8)
-RT_REQS = 5
+RT_REQS = 4
 auto_msg_ratelimits: dict[int, utils.RateLimit] = {}  # {channel_id: RateLimit}
 async def stream_started_msg(txtchn: TextChannel, title, vid_url):
     logger.info(f"Stream {title} ({vid_url}) started at"
