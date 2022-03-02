@@ -235,9 +235,13 @@ class Admin(commands.Cog):
         except KeyError:
             pass
 
+        # Increase the ratelimit for the capturing message
         if ctx.channel.id in streams.auto_msg_ratelimits:
-            streams.auto_msg_ratelimits[ctx.channel.id].pool.popleft()
-            streams.auto_msg_ratelimits[ctx.channel.id].pool.popleft()
+            try:
+                streams.auto_msg_ratelimits[ctx.channel.id].pool.popleft()
+                streams.auto_msg_ratelimits[ctx.channel.id].pool.popleft()
+            except IndexError:
+                pass
 
         stream_task = asyncio.create_task(
             streams.one_time_listen(self.bot, ctx.channel, vid_url),
