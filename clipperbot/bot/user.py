@@ -80,13 +80,7 @@ class Clipping(commands.Cog):
                 ctx, relative_start, duration
             )
         except ValueError:
-            if relative_start == "adj" or relative_start == "adjust":
-                await ctx.send(
-                    f"Wrong usage, try `{ctx.prefix}adjust` while replying to a clip?"
-                )
-                return
-            else:
-                raise commands.BadArgument()
+            raise commands.BadArgument()
 
         audio_only = ctx.invoked_with in ["audio", "a"]
 
@@ -185,46 +179,6 @@ class Clipping(commands.Cog):
             from_start -= stream.start_time - stream.actual_start
 
         await self._create_n_send_clip(ctx, from_start, duration, audio_only)
-
-    adjust_brief = "Reply to a clip to adjust it."
-    @commands.command(
-        aliases=["adj"],
-        help=help_strings.adjust_command_description,
-        brief=adjust_brief,
-    )
-    async def adjust(
-        self,
-        ctx,
-        start_adjust,
-        duration_adjust: str = "0",
-    ):
-        try:
-            start_adjust = to_timedelta(start_adjust)
-        except Exception as e:
-            raise commands.UserInputError from e
-
-        if ctx.message.reference is None:
-            await ctx.reply("You need to reply to the clip to adjust.")
-            return
-        try:
-            idx = self.sent_clips.index(ctx.message.reference)
-            og_clip = self.sent_clips[idx]
-        except (ValueError, KeyError):
-            self.bot.logger.info("Requested adjust on clip message that is"
-                                 " no longer tracked.")
-            return
-
-        from_time = og_clip.from_time + start_adjust
-        duration = og_clip.duration + to_timedelta(duration_adjust)
-        relative_start = None
-
-        await self._create_n_send_clip(
-            ctx,
-            from_time,
-            duration,
-            audio_only=og_clip.audio_only,
-            relative_start=relative_start,
-        )
 
     @commands.Cog.listener()
     async def on_message_edit(self, before: discord.Message, after: discord.Message):
