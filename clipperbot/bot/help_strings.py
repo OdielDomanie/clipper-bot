@@ -93,3 +93,8 @@ f"""Create a screenshot. sample usage:
 `ss whole`    | Screenshot the whole frame.
 `ss bl`       | Screenshot the bottomleft quadrant.
 Valid position arguments: `everyone`, `{"`, `".join(CROP_STR.keys())}`"""
+
+
+stream_stop_description = \
+"""Stop the stream command.
+This is not needed for streams that end naturally by itself, but for streams that go on indefinetely."""

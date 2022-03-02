@@ -216,7 +216,9 @@ class Admin(commands.Cog):
     stream_cancels: dict[str, bool] = {}
     stream_id_counter = 0
 
-    @commands.command()
+    @commands.group(
+        invoke_without_command=True,
+    )
     async def stream(self, ctx, vid_url: str):
         "Start a one-time capture of a stream from a direct url."
         vid_url = vid_url.strip('<>')
@@ -266,6 +268,32 @@ class Admin(commands.Cog):
                 except KeyError:
                     pass
                 self._register_wo_sanitize(ctx, old_chn)
+
+    @stream.command(
+        brief="Stop the stream command.",
+        description=help_strings.stream_stop_description,
+    )
+    async def stop(self, ctx):
+        txtchn = ctx.channel
+        # stop stream
+        self.bot.logger.info(f"Stopping stream at {txtchn.name}.")
+        if txtchn in self.bot.listens:
+            listen_task = self.bot.listens[txtchn]
+
+            task_name = listen_task.get_name()
+            if task_name.split()[0] == "one_time":
+                is_cancelled = Admin.stream_cancels.setdefault(
+                    task_name.split()[1], False
+                )
+                if not is_cancelled:
+                    listen_task.cancel()
+                    Admin.stream_cancels[task_name.split()[1]] = True
+            else:
+                listen_task.cancel()
+
+            del self.bot.listens[txtchn]
+
+            await ctx.reply("Stopped one-time capturing.")
 
     async def _register(self, ctx, channel_url):
         san_chn_url = await sanitize_chnurl(channel_url)
