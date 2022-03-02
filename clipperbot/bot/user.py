@@ -80,13 +80,7 @@ class Clipping(commands.Cog):
                 ctx, relative_start, duration
             )
         except ValueError:
-            if relative_start == "adj" or relative_start == "adjust":
-                await ctx.send(
-                    f"Wrong usage, try `{ctx.prefix}adjust` while replying to a clip?"
-                )
-                return
-            else:
-                raise commands.BadArgument()
+            raise commands.BadArgument()
 
         audio_only = ctx.invoked_with in ["audio", "a"]
 
@@ -186,86 +180,47 @@ class Clipping(commands.Cog):
 
         await self._create_n_send_clip(ctx, from_start, duration, audio_only)
 
-    adjust_brief = "Reply to a clip to adjust it."
-    @commands.command(
-        aliases=["adj"],
-        help=help_strings.adjust_command_description,
-        brief=adjust_brief,
-    )
-    async def adjust(
-        self,
-        ctx,
-        start_adjust,
-        duration_adjust: str = "0",
-    ):
-        try:
-            start_adjust = to_timedelta(start_adjust)
-        except Exception as e:
-            raise commands.UserInputError from e
-
-        if ctx.message.reference is None:
-            await ctx.reply("You need to reply to the clip to adjust.")
-            return
-        try:
-            idx = self.sent_clips.index(ctx.message.reference)
-            og_clip = self.sent_clips[idx]
-        except (ValueError, KeyError):
-            self.bot.logger.info("Requested adjust on clip message that is"
-                                 " no longer tracked.")
-            return
-
-        from_time = og_clip.from_time + start_adjust
-        duration = og_clip.duration + to_timedelta(duration_adjust)
-        relative_start = None
-
-        await self._create_n_send_clip(
-            ctx,
-            from_time,
-            duration,
-            audio_only=og_clip.audio_only,
-            relative_start=relative_start,
-        )
-
     @commands.Cog.listener()
     async def on_message_edit(self, before: discord.Message, after: discord.Message):
+
+        TRIM_WORD = "trim"
+
         command_edit = False
         for sent_clip in self.sent_clips:
             if before == sent_clip.command_ctx.message:
                 command_edit = True
                 break
+
+        # if the edited message was a command
         if command_edit:
+
+            if sent_clip.stream != self.bot.streams[after.channel]:
+                return
+
             args: list[str] = after.content.split()
 
-            if len(args) < 2:
+            if TRIM_WORD not in args:
                 return
-            # was it called with c, or with c fromstart
-            if args[1] not in {"fromstart", "s"}:
-                # not enough arguments
-                if len(args) < 2:
-                    return
 
-                new_rel_start = -to_timedelta(args[1])
-                old_args = sent_clip.command_str.split()
-                if len(old_args) >= 2:
-                    old_rel_start = -to_timedelta(old_args[1])
-                else:
-                    old_rel_start = -self.bot.def_clip_duration
+            trim_loc = args.index(TRIM_WORD)
+            new_args = args[trim_loc :]
 
-                new_ftime = sent_clip.from_time + (new_rel_start - old_rel_start)
-                if len(args) >= 3:  # Duration specified
-                    new_duration = to_timedelta(args[2])
+            try:
+                trim_start = to_timedelta(new_args[1])
+                if len(new_args) == 2:
+                    trim_end = to_timedelta("0")
                 else:
-                    new_duration = self.bot.def_clip_duration
-            else:
-                # not enough arguments
-                if len(args) < 3:
-                    return
+                    trim_end = to_timedelta(new_args[2])
+            except (commands.BadArgument, IndexError, ValueError):
+                # User entered invalid arguments
+                return
 
-                new_ftime = to_timedelta(args[2])
-                if len(args) >= 4:  # Duration specified
-                    new_duration = to_timedelta(args[3])
-                else:
-                    new_duration = self.bot.def_clip_duration
+            new_ftime = sent_clip.og_from_time - trim_start
+            new_duration = sent_clip.og_duration + trim_end + trim_start
+
+            # if the edit didn't change anything
+            if new_ftime == sent_clip.from_time and new_duration == sent_clip.duration:
+                return
 
             async with self.edit_lock.setdefault(
                 sent_clip.command_ctx.author, asyncio.Lock()
@@ -280,11 +235,16 @@ class Clipping(commands.Cog):
                     new_duration,
                     audio_only=sent_clip.audio_only,
                     relative_start=None,
+                    og_from_time=sent_clip.og_from_time,
+                    og_duration=sent_clip.og_duration,
                 )
                 if new_clip is not None:
-                    await sent_clip.msg.delete()
                     self.sent_clips.remove(sent_clip)
-                    self.sent_clips.append(new_clip)
+                    await sent_clip.msg.delete()
+                    try:
+                        os.remove(sent_clip.clip_fpath)
+                    except FileNotFoundError:
+                        pass
 
     def _calc_time(self, ctx, relative_start, duration):
         if relative_start == "...":
@@ -312,7 +272,8 @@ class Clipping(commands.Cog):
         from_time: dt.timedelta,
         duration: dt.timedelta,
         audio_only=False,
-        relative_start=None
+        relative_start=None,
+        **kwargs,
     ):
         if not audio_only and duration > self.bot.max_clip_duration:
             # Duration more than allowed.
@@ -353,7 +314,8 @@ class Clipping(commands.Cog):
                 clip_fpath,
                 stream,
                 audio_only,
-                relative_start=relative_start
+                relative_start=relative_start,
+                **kwargs,
             )
 
     async def _send_clip(
@@ -364,7 +326,9 @@ class Clipping(commands.Cog):
         clip_fpath,
         stream: StreamDownload,
         audio_only,
-        relative_start=None
+        relative_start=None,
+        og_from_time=...,
+        og_duration=...,
     ):
         clip_size = clip_size = os.path.getsize(clip_fpath)
 
@@ -428,6 +392,11 @@ class Clipping(commands.Cog):
                 f"Posted clip (duration {duration}) ({clip_size//(1024)}KB) at"
                 f" {(ctx.guild.name, ctx.channel.name)}")
 
+            if og_from_time == ...:
+                og_from_time = from_time
+            if og_duration == ...:
+                og_duration = duration
+
             sent_clip = Clip(
                 msg,
                 clip_fpath,
@@ -437,6 +406,8 @@ class Clipping(commands.Cog):
                 audio_only,
                 ctx,
                 ctx.message.content,
+                og_from_time,
+                og_duration,
                 relative_start=relative_start,
             )
             self.sent_clips.append(sent_clip)
@@ -552,6 +523,8 @@ class Clip:
     audio_only: bool
     command_ctx: commands.Context
     command_str: str
+    og_from_time: dt.timedelta
+    og_duration: dt.timedelta
     relative_start: typing.Union[dt.timedelta, None] = None
 
     def __eq__(self, b) -> bool:
