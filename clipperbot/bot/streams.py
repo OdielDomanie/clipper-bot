@@ -2,7 +2,7 @@ import asyncio
 import logging
 import datetime as dt
 import os
-from discord import TextChannel
+from discord import TextChannel, Message
 from ..video.download import (
     StreamDownload,
     wait_for_stream,
@@ -140,6 +140,8 @@ async def create_stream(bot: "ClipBot", txtchn, vid_url, title, start_time):
             pass
 
 
+capturing_msgs: dict[int, Message] = {}
+
 # Prevent spamming in the case of a bug, as these messages can be sent
 # without user prompt.
 # The constants should be replaced by configs.
@@ -155,7 +157,14 @@ async def stream_started_msg(txtchn: TextChannel, title, vid_url):
             utils.RateLimit(RT_TIME, RT_REQS),
         )
         skipping_msg = rate_limit.skip(txtchn.send)
-        await skipping_msg(f"Capturing stream: {title} (<{vid_url}>)")
+        msg = await skipping_msg(f"Capturing stream: {title} (<{vid_url}>)")
+        if msg is not None:
+            if txtchn.id in capturing_msgs:
+                try:
+                    await capturing_msgs[txtchn.id].delete()
+                except Exception:
+                    pass
+            capturing_msgs[txtchn.id] = msg
     except Exception as e:
         logger.error(f"Can't send \"stream started\" message: {e}")
 
