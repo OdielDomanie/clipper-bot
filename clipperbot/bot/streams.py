@@ -11,6 +11,9 @@ from ..video.download import (
 )
 from .. import utils
 from ..utils import clean_space
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from . import ClipBot
 
 from .. import POLL_INTERVAL
 
@@ -77,7 +80,7 @@ async def one_time_listen(bot, txtchn: TextChannel, vid_url):
 
 
 ratelimit = 0
-async def create_stream(bot, txtchn, vid_url, title, start_time):
+async def create_stream(bot: "ClipBot", txtchn, vid_url, title, start_time):
     """Creates and starts (if necessary)
     and registers a stream to a text channel,
     cleans up and returns when the stream ends."""
@@ -90,10 +93,22 @@ async def create_stream(bot, txtchn, vid_url, title, start_time):
                 break
         if not stream:
             stream = StreamDownload(vid_url, title, start_time=start_time)
-            try:
-                os.remove(bot.streams[txtchn.id].filepath)
-            except (FileNotFoundError, KeyError):
-                pass
+
+        # Delete the previous stream file if no text channel is using it
+        try:
+            if list(bot.streams.values()).count(bot.streams[txtchn]) == 1:
+                try:
+                    os.remove(bot.streams[txtchn].filepath)
+                    logger.info(f"Deleting {bot.streams[txtchn].filepath}")
+                except FileNotFoundError:
+                    try:
+                        os.remove(bot.streams[txtchn].filepath + ".part")
+                        logger.info(f"Deleting {bot.streams[txtchn].filepath}.part")
+                    except FileNotFoundError:
+                        pass
+        except KeyError:
+            pass
+
         bot.streams[txtchn] = stream
         bot.active_files.append(stream.filepath)
         try:
