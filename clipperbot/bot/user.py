@@ -276,7 +276,7 @@ class Clipping(commands.Cog):
         if relative_start == "...":
             relative_start = self.bot.def_clip_duration
         else:
-            relative_start = to_timedelta(relative_start)
+            relative_start = to_timedelta(relative_start) + dt.timedelta(seconds=1)
         if duration == "...":
             duration = self.bot.def_clip_duration
         elif duration == "-":

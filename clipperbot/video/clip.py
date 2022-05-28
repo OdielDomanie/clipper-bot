@@ -102,9 +102,7 @@ async def cut_video(
         if relative_start is None:
             start_arg = f"-ss {from_time.total_seconds():.3f}"
         else:
-            # This probably feels better for the user.
-            delayed_start = relative_start.total_seconds() - 1
-            start_arg = f"-sseof {delayed_start:.3f}"
+            start_arg = f"-sseof {relative_start.total_seconds():.3f}"
 
         if quickseek or relative_start is not None:
             command = (
