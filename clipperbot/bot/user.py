@@ -180,6 +180,32 @@ class Clipping(commands.Cog):
 
         await self._create_n_send_clip(ctx, from_start, duration, audio_only)
 
+    @commands.command()
+    async def vertical(self, ctx: commands.Context):
+        "Reply to a clip to make it vertical."
+
+        assert ctx.message
+        if ctx.message.reference is None:
+            await ctx.reply("You need to reply to a clip.")
+            return
+
+        try:
+            idx = self.sent_clips.index(ctx.message.reference)
+            og_clip = self.sent_clips[idx]
+        except (ValueError, KeyError):
+            self.bot.logger.info("Requested vertical on clip message that is"
+                                 " no longer tracked.")
+            return
+
+        await self._create_n_send_clip(
+            ctx,
+            og_clip.from_time,
+            og_clip.duration,
+            audio_only=og_clip.audio_only,
+            relative_start=None,
+            vertical=True,
+        )
+
     @commands.Cog.listener()
     async def on_message_edit(self, before: discord.Message, after: discord.Message):
 
@@ -293,7 +319,8 @@ class Clipping(commands.Cog):
                 audio_only=audio_only,
                 relative_start=relative_start,
                 website=stream.website,
-                tempdir=stream.tempdir
+                tempdir=stream.tempdir,
+                **kwargs,
             )
         except KeyError:
             await ctx.reply("No captured stream in"
@@ -329,6 +356,7 @@ class Clipping(commands.Cog):
         relative_start=None,
         og_from_time=...,
         og_duration=...,
+        **kwargs,
     ):
         clip_size = clip_size = os.path.getsize(clip_fpath)
 
@@ -357,7 +385,8 @@ class Clipping(commands.Cog):
                 audio_only=audio_only,
                 relative_start=new_relative_start,
                 website=stream.website,
-                tempdir=stream.tempdir
+                tempdir=stream.tempdir,
+                **kwargs,
             )
             short_clip_size = os.path.getsize(short_clip_fpath)
             if (short_clip_size <= ctx.guild.filesize_limit):

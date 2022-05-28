@@ -29,6 +29,7 @@ async def clip(
     *,
     clip_dir=CLIP_DIR,
     ffmpeg=FFMPEG,
+    **kwargs,
 ):
     """Creates a clip file from `stream_filepath`.
     Returns path of the clip file.
@@ -61,6 +62,7 @@ async def clip(
         relative_start=relative_start,
         quickseek=quick_seek,
         tempdir=tempdir,
+        **kwargs,
     )
 
     clean_space(CLIP_DIR, MAX_CLIP_STORAGE)
@@ -78,6 +80,7 @@ async def cut_video(
     relative_start=None,
     quickseek=False,
     tempdir=None,
+    vertical=False,
 ):
     """ Cuts a video file.
     """
@@ -109,6 +112,7 @@ async def cut_video(
                 {start_arg}\
                 -t {duration.total_seconds():.3f}\
                 -i {shlex.quote(stream_filepath)}\
+                {'-aspect 9:16' if vertical else ''}\
                 -acodec copy\
                 {'-vn' if audio_only else '-vcodec copy'}\
                 -movflags faststart\
@@ -118,6 +122,7 @@ async def cut_video(
             command = (
                 f"{ffmpeg} -y -hide_banner\
                 -i {shlex.quote(stream_filepath)}\
+                {'-aspect 9:16' if vertical else ''}\
                 -acodec copy\
                 {'-vn' if audio_only else '-vcodec copy'}\
                 -movflags faststart\
