@@ -71,6 +71,8 @@ class YtdlDownload(Downloader):
 
         self._dl_task: Optional[aio.Task] = None
 
+        assert info_dict.get("is_live"), "Video is not live."
+
         self._start_time = None
         timestamp = info_dict.get("timestamp")
         if timestamp is None:
@@ -87,8 +89,10 @@ class YtdlDownload(Downloader):
     def output_fpath(self):
         if os.path.isfile(self._output_fpath + ".part"):
             return self._output_fpath + ".part"
-        else:
+        elif os.path.isfile(self._output_fpath):
             return self._output_fpath
+        else:
+            return None
 
     WATCH_FILE_POLL_INTV = 10
 
@@ -141,7 +145,7 @@ class YtdlDownload(Downloader):
             else:
                 logger.info(f"Process ended with {yt_proc.returncode}")
 
-    async def _wait_end(self, yt_proc: Process):
+    async def _wait_end(self, yt_proc: Process, repeat=True):
         "This task returns when download ends, and does the cleanup. Cancelling this task cancels the download."
         proc_wait = aio.create_task(yt_proc.wait())
         file_watch = aio.create_task(self._watch_file())
@@ -169,6 +173,12 @@ class YtdlDownload(Downloader):
             file_watch.cancel()
             await aio.gather(proc_wait, file_watch, return_exceptions=True)
 
+            # Try to download again, once more.
+            if repeat:
+                logger.info(f"Restarting the download once more.")
+                yt_proc = await self._start_download()
+                return await self._wait_end(yt_proc, repeat=False)
+
     async def _start_download(self):
         """Starts a ytdl process download. Waits until the output file is created.
         Returns the process. Cleans up when an exception (like cancelling) occurs.
@@ -179,7 +189,11 @@ class YtdlDownload(Downloader):
         filepath_cmd = shlex.quote(self._output_fpath)
 
         try:
-            os.remove(self.output_fpath)
+            os.remove(self._output_fpath)
+        except FileNotFoundError:
+            pass
+        try:
+            os.remove(self._output_fpath + ".part")
         except FileNotFoundError:
             pass
 
@@ -190,8 +204,8 @@ class YtdlDownload(Downloader):
         # may break this code, especially in the case of a stream having a vp9
         # encoding option.
         # --continue
-        cmd = f"{YTDL_EXEC} --no-cache-dir --hls-use-mpegts\
-            --cookies cookies.txt -o {filepath_cmd} {url_cmd}"
+        cmd = f'{YTDL_EXEC} --no-cache-dir --hls-use-mpegts --match-filter "is_live"\
+            --cookies cookies.txt -o {filepath_cmd} {url_cmd}'
 
         logger.info(f"Running: {shlex.join(shlex.split(cmd))}")
 
@@ -232,7 +246,8 @@ class YtdlDownload(Downloader):
         return self._actual_start or self._start_time
 
     def clear_space(self):
-        try:
-            os.remove(self.output_fpath)
-        except FileNotFoundError:
-            pass
+        if output_fpath := self.output_fpath:
+            try:
+                os.remove(output_fpath)
+            except FileNotFoundError:
+                pass

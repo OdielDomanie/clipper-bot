@@ -6,15 +6,18 @@ import datetime as dt
 import os
 import os.path
 import io
+import time
+from clipperbot.download.listen import ListenManager
 import discord
 from discord.ext import commands
 from ..video import clip
 from ..video.clip import CROP_STR
-from ..video.download import StreamDownload
 from ..utils import timedelta_to_str
 from ..webserver import serveclips
 from ..video import facetracking
 from . import help_strings
+from ..download.downloader import Downloader
+
 import typing
 if typing.TYPE_CHECKING:
     from . import ClipBot
@@ -41,10 +44,7 @@ def to_timedelta(s: str):
 
 
 def _duration_converter(s):
-    if s == "-":
-        return s
-    else:
-        return to_timedelta(s)
+    return to_timedelta(s)
 
 
 class Clipping(commands.Cog):
@@ -71,13 +71,24 @@ class Clipping(commands.Cog):
         /,
     ):
 
-        if ctx.channel not in self.bot.streams:
+        bot: ClipBot = ctx.bot
+
+        listen_man = bot.get_listener(ctx.channel)
+
+        if not listen_man:
             # No stream has been run in this channel
             return
 
+        if not listen_man.download:
+            # There is no associated download
+            return
+
+        download = listen_man.download.download
+        title = listen_man.listener.stream_title  # type: ignore
+
         try:
             from_time, duration, relative_start = self._calc_time(
-                ctx, relative_start, duration
+                download.actual_start, relative_start, duration
             )
         except ValueError:
             raise commands.BadArgument()
@@ -85,7 +96,7 @@ class Clipping(commands.Cog):
         audio_only = ctx.invoked_with in ["audio", "a"]
 
         await self._create_n_send_clip(
-            ctx, from_time, duration, audio_only, relative_start=relative_start
+            ctx, download, title, from_time, duration, audio_only, relative_start=relative_start
         )
 
     screenshot_brief = "Create a screenshot"
@@ -110,6 +121,12 @@ class Clipping(commands.Cog):
             await ctx.reply("Valid position arguments: " + ", ".join(CROP_STR.keys()))
             return
 
+        listen_man: typing.Optional[ListenManager] = ctx.bot.get_listener(ctx.channel)
+        if not listen_man:
+            return
+
+        title = listen_man.listener.stream_title  # type: ignore
+
         try:
             png = await self._create_ss(
                 ctx, pos=crop, relative_start=dt.timedelta(seconds=-3)
@@ -123,9 +140,9 @@ class Clipping(commands.Cog):
             except facetracking.NoFaceException:
                 pass
 
-        stream = self.bot.streams[ctx.channel]
-
-        send = self.bot.get_cog("DeletableMessages").send
+        DeletableMessages = self.bot.get_cog("DeletableMessages")
+        assert DeletableMessages
+        send = DeletableMessages.send
 
         time_taken = dt.datetime.now() - receive_time
         time_taken_str = "{:.3f}".format(time_taken.total_seconds())
@@ -136,27 +153,29 @@ class Clipping(commands.Cog):
         try:
             await send(
                 ctx,
-                file=discord.File(io.BytesIO(png), f"{stream.title}.png"),
+                file=discord.File(io.BytesIO(png), f"{title}_{time.time():.0f}.png"),
                 fpath=None
             )
         except Exception:
             self.bot.logger.exception("Could not send screenshot to " + ctx.channel)
 
-    async def _create_ss(self, ctx, *, pos, relative_start=dt.timedelta(seconds=0)):
-        stream = self.bot.streams[ctx.channel]
+    async def _create_ss(self, downloader: Downloader, *, pos, relative_start=dt.timedelta(seconds=0)):
+        if not (stream_fpath := downloader.output_fpath):
+                raise FileNotFoundError
         try:
             png: bytes = await clip.create_screenshot(
-                stream.filepath,
+                downloader.output_fpath,
                 pos,
                 relative_start
             )
         except Exception as e:
             self.bot.logger.exception(e)
             self.bot.logger.exception(
-                "Could not create screenshot from " + stream.filepath
+                "Could not create screenshot from " + stream_fpath
             )
             raise
         return png
+
 
     clip_s_brief = "Clip relative to stream start."
     @clip.command(
@@ -174,28 +193,43 @@ class Clipping(commands.Cog):
 
         audio_only = ctx.invoked_parents[0] in ["audio", "a"]
 
-        stream = self.bot.streams[ctx.channel]
-        if stream.actual_start is not None:
-            from_start -= stream.start_time - stream.actual_start
+        listen_man: typing.Optional[ListenManager] = ctx.bot.get_listener(ctx.channel)
+        if not listen_man:
+            return
+        if not listen_man.download:
+            return
 
-        await self._create_n_send_clip(ctx, from_start, duration, audio_only)
+        start_time = listen_man.download.download.start_time
+        actual_start = listen_man.download.download.actual_start
+        title = listen_man.listener.stream_title  # type: ignore
+
+        if actual_start is not None:
+            from_start -= start_time - actual_start
+
+        await self._create_n_send_clip(
+            ctx,
+            listen_man.download.download,
+            title=title,
+            from_time=from_start,
+            duration=duration,
+            audio_only=audio_only,
+        )
 
     @commands.Cog.listener()
     async def on_message_edit(self, before: discord.Message, after: discord.Message):
 
         TRIM_WORD = "trim"
 
-        command_edit = False
+        sent_clip = None
         for sent_clip in self.sent_clips:
             if before == sent_clip.command_ctx.message:
-                command_edit = True
                 break
 
         # if the edited message was a command
-        if command_edit:
+        if sent_clip:
 
-            if sent_clip.stream != self.bot.streams[after.channel]:
-                return
+            # if sent_clip.downloader != self.bot.streams[after.channel]:
+            #     return
 
             args: list[str] = after.content.split()
 
@@ -225,12 +259,15 @@ class Clipping(commands.Cog):
             async with self.edit_lock.setdefault(
                 sent_clip.command_ctx.author, asyncio.Lock()
             ):
+                title = sent_clip.stream_title
                 # Instead of sending new, edit?
                 # It might be needed to send the media in embed?
                 # It might be needed to send the new video to another channel and
                 # replace the links.
                 new_clip = await self._create_n_send_clip(
                     sent_clip.command_ctx,
+                    sent_clip.downloader,
+                    title,
                     new_ftime,
                     new_duration,
                     audio_only=sent_clip.audio_only,
@@ -246,22 +283,21 @@ class Clipping(commands.Cog):
                     except FileNotFoundError:
                         pass
 
-    def _calc_time(self, ctx, relative_start, duration):
-        if relative_start == "...":
+    def _calc_time(self, stream_start: dt.datetime, relative_start_str: str, duration_str: str):
+        if relative_start_str == "...":
             relative_start = self.bot.def_clip_duration
         else:
-            relative_start = to_timedelta(relative_start)
-        if duration == "...":
+            relative_start = to_timedelta(relative_start_str)
+        if duration_str == "...":
             duration = self.bot.def_clip_duration
-        elif duration == "-":
+        elif duration_str == "-":
             duration = relative_start
         else:
-            duration = _duration_converter(duration)
-        stream = self.bot.streams[ctx.channel]
+            duration = _duration_converter(duration_str)
         from_time = (
             dt.datetime.now(dt.timezone.utc)
             - relative_start
-            - stream.start_time
+            - stream_start
         )
 
         return from_time, duration, -relative_start
@@ -269,6 +305,8 @@ class Clipping(commands.Cog):
     async def _create_n_send_clip(
         self,
         ctx,
+        download: Downloader,
+        title: str,
         from_time: dt.timedelta,
         duration: dt.timedelta,
         audio_only=False,
@@ -281,20 +319,15 @@ class Clipping(commands.Cog):
             raise commands.BadArgument
 
         try:
-            stream = self.bot.streams[ctx.channel]
-            if stream.website == "twspace":
-                audio_only = True
             clip_fpath = await clip.clip(
-                stream.filepath,
-                stream.title,
-                from_time,
-                duration,
-                stream.start_time,
-                audio_only=audio_only,
+                download.clip_args,
+                title=title,
                 relative_start=relative_start,
-                website=stream.website,
-                tempdir=stream.tempdir
+                from_time=from_time,
+                duration=duration,
+                audio_only=audio_only,
             )
+
         except KeyError:
             await ctx.reply("No captured stream in"
                             " this channel currently.")
@@ -309,10 +342,11 @@ class Clipping(commands.Cog):
         else:
             return await self._send_clip(
                 ctx,
+                download,
+                title,
                 from_time,
                 duration,
                 clip_fpath,
-                stream,
                 audio_only,
                 relative_start=relative_start,
                 **kwargs,
@@ -321,10 +355,11 @@ class Clipping(commands.Cog):
     async def _send_clip(
         self,
         ctx,
+        download: Downloader,
+        title: str,
         from_time,
         duration,
         clip_fpath,
-        stream: StreamDownload,
         audio_only,
         relative_start=None,
         og_from_time=...,
@@ -349,15 +384,12 @@ class Clipping(commands.Cog):
                 new_relative_start = None
 
             short_clip_fpath = await clip.clip(
-                stream.filepath,
-                stream.title,
-                from_time + dt.timedelta(seconds=1),
-                duration - dt.timedelta(seconds=1),
-                stream.start_time,
+                download.clip_args,
+                title=title,
+                from_time = from_time + dt.timedelta(seconds=1),
+                duration = duration - dt.timedelta(seconds=1),
                 audio_only=audio_only,
                 relative_start=new_relative_start,
-                website=stream.website,
-                tempdir=stream.tempdir
             )
             short_clip_size = os.path.getsize(short_clip_fpath)
             if (short_clip_size <= ctx.guild.filesize_limit):
@@ -400,7 +432,7 @@ class Clipping(commands.Cog):
             sent_clip = Clip(
                 msg,
                 clip_fpath,
-                stream,
+                download,
                 from_time,
                 duration,
                 audio_only,
@@ -408,6 +440,7 @@ class Clipping(commands.Cog):
                 ctx.message.content,
                 og_from_time,
                 og_duration,
+                stream_title=title,
                 relative_start=relative_start,
             )
             self.sent_clips.append(sent_clip)
@@ -423,7 +456,9 @@ class Clipping(commands.Cog):
         relative_start=None,
     ):
         logger = self.bot.logger
-        reply = self.bot.get_cog("DeletableMessages").reply
+        DeletableMessages = self.bot.get_cog("DeletableMessages")
+        assert DeletableMessages
+        reply = DeletableMessages.reply
         try:
             with open(clip_fpath, "rb") as file_clip:
                 file_name = os.path.basename(clip_fpath)
@@ -461,7 +496,9 @@ class Clipping(commands.Cog):
         self, ctx, clip_fpath, clip_size, from_time, duration, relative_start=None
     ):
         logger = self.bot.logger
-        reply = self.bot.get_cog("DeletableMessages").reply
+        DeletableMessages = self.bot.get_cog("DeletableMessages")
+        assert DeletableMessages
+        reply = DeletableMessages.reply
 
         if self.bot.get_link_perm(ctx.guild.id) == "true":
             logger.info(
@@ -517,7 +554,7 @@ class Clipping(commands.Cog):
 class Clip:
     msg: discord.Message
     clip_fpath: str
-    stream: StreamDownload
+    downloader: Downloader
     from_time: dt.timedelta
     duration: dt.timedelta
     audio_only: bool
@@ -525,6 +562,7 @@ class Clip:
     command_str: str
     og_from_time: dt.timedelta
     og_duration: dt.timedelta
+    stream_title: str
     relative_start: typing.Union[dt.timedelta, None] = None
 
     def __eq__(self, b) -> bool:

@@ -5,6 +5,7 @@ import logging
 import os
 import shlex
 import sys
+from typing import Callable, Iterable, Optional
 from ..utils import timedelta_to_str, hour_floor_diff, clean_space
 from .. import CLIP_DIR, MAX_CLIP_STORAGE, FFMPEG
 
@@ -17,16 +18,13 @@ def _increment_nice():
 
 
 async def clip(
-    stream_filepath: str,
-    title: str,
-    from_time: dt.timedelta,
-    duration: dt.timedelta,
-    stream_start_time: dt.datetime,
-    audio_only=False,
-    relative_start=None,
-    website="youtube",
-    tempdir: str | None = None,
+    args_fun: Callable,
     *,
+    title: str,
+    relative_start: Optional[dt.timedelta] = None,  # sseof
+    from_time: dt.timedelta,  # ss
+    duration: dt.timedelta,
+    audio_only: bool = False,
     clip_dir=CLIP_DIR,
     ffmpeg=FFMPEG,
 ):
@@ -35,140 +33,54 @@ async def clip(
     """
     title = title.replace("/", "_")
 
-    if stream_filepath.rsplit(".", 1)[:-1] != "webm":
-        # discord doesn't embed .aac but .m4a
-        extension = ".m4a" if audio_only else ".mp4"
-    else:
-        # discord doesnt embed audio only webms
-        extension = ".ogg" if audio_only else ".webm"
-
-    time_stamp = timedelta_to_str(
-        hour_floor_diff(stream_start_time) + from_time,
-        millisecs=False)
-    clip_filepath = os.path.join(
+    time_stamp = timedelta_to_str(from_time, millisecs=False)
+    clip_fpath = os.path.join(
         clip_dir,
-        f"{title} {time_stamp}_{duration.total_seconds():.2f}{extension}"
+        f"{title} {time_stamp}_{duration.total_seconds():.2f}"
     )
 
-    quick_seek = website == "youtube" or website == "twspace"
+    sseof = relative_start.total_seconds() if relative_start else None
 
-    await cut_video(
-        stream_filepath,
-        from_time,
-        duration,
-        clip_filepath,
-        audio_only, ffmpeg,
-        relative_start=relative_start,
-        quickseek=quick_seek,
-        tempdir=tempdir,
+    args = args_fun(
+        clip_fpath,
+        sseof=sseof,
+        ss=from_time.total_seconds(),
+        duration=duration.total_seconds(),
+        audio_only=audio_only,
+        ffmpeg=ffmpeg,
     )
+
+    await execute_cut(args, clip_fpath)
 
     clean_space(CLIP_DIR, MAX_CLIP_STORAGE)
 
-    return clip_filepath
+    return clip_fpath
 
 
-async def cut_video(
-    stream_filepath: str,
-    from_time: dt.timedelta,
-    duration: dt.timedelta,
-    output_path: str,
-    audio_only=False,
-    ffmpeg=FFMPEG,
-    relative_start=None,
-    quickseek=False,
-    tempdir=None,
-):
-    """ Cuts a video file.
-    """
-    logger.debug(
-        f"Creating clip file from {stream_filepath} to {output_path}.\n"
-        f"From: {str(from_time)}"
-        f"{' ('+str(relative_start)+')' if relative_start is not None else ''}"
-        f" for {str(duration)}"
+async def execute_cut(args: Iterable[str], output_path: str):
+    "Cut a video file by executing the given args."
+
+    process = await asyncio.create_subprocess_exec(
+        *args,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+        preexec_fn=_increment_nice,
     )
 
-    stream_filepath = find_stream_file(stream_filepath, tempdir)
+    ffmpeg_logger = logging.getLogger(logger.name + ".ffmpeg")
+    encoding = sys.stdout.encoding or "utf-8"
 
-    if not os.path.isfile(output_path):
-        # Time argument before the -i for faster seeking,
-        # and after for accuracy
-        # -t after -i only seems to cause errors when t is longer than the vid
-        # duration
+    ffmpeg_out, _ = await process.communicate()
+    ffmpeg_logger.debug(str(ffmpeg_out, encoding))
 
-        if relative_start is None:
-            start_arg = f"-ss {from_time.total_seconds():.3f}"
+    if (return_code := await process.wait()) == 0:
+        logger.debug("Clip process finished with 0.")
+    else:
+        logger.error(f"Clip process ended with {return_code}")
+        if os.path.isfile(output_path):
+            logger.error("However, clip file exists. Trying to continue on")
         else:
-            # This probably feels better for the user.
-            delayed_start = relative_start.total_seconds() - 1
-            start_arg = f"-sseof {delayed_start:.3f}"
-
-        if quickseek or relative_start is not None:
-            command = (
-                f"{ffmpeg} -y -hide_banner\
-                {start_arg}\
-                -t {duration.total_seconds():.3f}\
-                -i {shlex.quote(stream_filepath)}\
-                -acodec copy\
-                {'-vn' if audio_only else '-vcodec copy'}\
-                -movflags faststart\
-                {shlex.quote(output_path)}"
-            )
-        else:
-            command = (
-                f"{ffmpeg} -y -hide_banner\
-                -i {shlex.quote(stream_filepath)}\
-                -acodec copy\
-                {'-vn' if audio_only else '-vcodec copy'}\
-                -movflags faststart\
-                {start_arg}\
-                -t {duration.total_seconds():.3f}\
-                {shlex.quote(output_path)}"
-            )
-
-        logger.info(f"Clip cmd: {shlex.join(shlex.split(command))}")
-
-        process = await asyncio.create_subprocess_exec(
-            *shlex.split(command),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
-            preexec_fn=_increment_nice,
-        )
-
-        logger.debug("Clip process started.")
-
-        ffmpeg_logger = logging.getLogger(logger.name + ".ffmpeg")
-        encoding = sys.stdout.encoding if sys.stdout.encoding else "utf-8"
-
-        ffmpeg_out, _ = await process.communicate()
-        ffmpeg_logger.debug(str(ffmpeg_out, encoding))
-
-        if (return_code := await process.wait()) == 0:
-            logger.debug("Clip process finished with 0.")
-        else:
-            logger.error(f"Clip process ended with {return_code}")
-            if os.path.isfile(output_path):
-                logger.error("However, clip file exists. Trying to continue on")
-            else:
-                raise Exception("Clip not created.")
-
-
-def find_stream_file(fpath, tempdir=None):
-    fpath_part = fpath + ".part"
-    if os.path.isfile(fpath_part):
-        return fpath_part
-    elif os.path.isfile(fpath):
-        return fpath
-    elif os.path.isfile(fpath + ".m4a"):
-        return fpath + ".m4a"
-    elif tempdir is not None:
-        for file in os.listdir(tempdir):
-            if file.endswith(".ts"):
-                return os.path.join(tempdir, file)
-    logger.error(
-        f"Clip could not be created: {fpath} not found."
-    )
-    raise FileNotFoundError
+            raise Exception("Clip not created.")
 
 
 async def create_thumbnail(video_fpath: str, ffmpeg=FFMPEG):

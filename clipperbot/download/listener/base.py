@@ -1,7 +1,7 @@
 import asyncio as aio
 import logging
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Callable, Coroutine, Iterable, Optional
 
 from ... import DOWNLOAD_DIR
 from ..download import DownloadManager
@@ -49,14 +49,25 @@ class Listener(ABC):
     def __init__(self, chn_url: str, download_dir=DOWNLOAD_DIR):
         assert self.validate_url(chn_url)
         self.chn_url: str = chn_url
-        self.stream_title = None
+        self._stream_title = None
         self.download_dir = download_dir
         self._is_live = aio.Event()
         self._listen_task: Optional[aio.Task] = None
         self._download: Optional[DownloadManager] = None
 
-    async def _listen_n_download(self):
-        "Start the download when the channel is live, continue listening when the download stops. Loop indefinitely."
+    @property
+    def stream_title(self) -> str:
+        assert self._stream_title
+        return self._stream_title
+
+    async def _listen_n_download(
+        self,
+        begin_hooks: Iterable[Callable[[], Coroutine]] = tuple(),
+        end_hooks: Iterable[Callable[[], Coroutine]] = tuple(),
+    ):
+        """Start the download and call the hooks when the channel is live, continue listening when the download stops.
+        Loop indefinitely.
+        """
         while True:
             await aio.sleep(self._get_poll_interval())
 
@@ -81,7 +92,10 @@ class Listener(ABC):
             )
             self._download.start()
             self._is_live.set()
-            self.stream_title = title
+            self._stream_title = title
+
+            for hook in begin_hooks:
+                await hook()
 
             try:
                 await self._download.wait_end()
@@ -90,11 +104,19 @@ class Listener(ABC):
             finally:
                 self._download.stop()
                 self._is_live.clear()
+                for hook in end_hooks:
+                    await hook()
 
-    def start(self):
+    def start(
+        self,
+        begin_hooks: Iterable[Callable[[], Coroutine]] = tuple(),
+        end_hooks: Iterable[Callable[[], Coroutine]] = tuple(),
+    ):
         "Start listening. When the channel is live, a download will be started."
         assert self._listen_task is None
-        self._listen_task = aio.create_task(self._listen_n_download())
+        self._listen_task = aio.create_task(
+            self._listen_n_download(begin_hooks, end_hooks)
+        )
 
     def stop(self):
         "Stop listening. The download will be stopped."

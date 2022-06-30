@@ -53,6 +53,11 @@ class TwitchDownload(YtdlDownload):
 
         assert sseof is not None or ss is not None
 
+        clip_fpath += ".m4a" if audio_only else ".mp4"
+
+        if not self.output_fpath:
+            raise FileNotFoundError()
+
         args = [
             ffmpeg,
             "-y",

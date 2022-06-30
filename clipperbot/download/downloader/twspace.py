@@ -81,14 +81,14 @@ class TwSpaceDownload(Downloader):
             for file in os.listdir(self.temp_dir):
                 if file.endswith(".ts"):
                     return os.path.join(self.temp_dir, file)
-        # Not found, default.
-        return self._output_fpath + ".m4a"
+        # Not found
+        return None
 
     def start(self):
         """Returns a directory where the file might be, the final file destination,
         and the download task."""
         download_dir = os.path.dirname(self._output_fpath)
-        space_dl = TwspaceDL.from_space_url(self.url, self.output_fpath, download_dir)
+        space_dl = TwspaceDL.from_space_url(self.url, self._output_fpath, download_dir)
         self.temp_dir = space_dl.tmpdir
         # fpath = space_dl.filename
 
@@ -120,10 +120,11 @@ class TwSpaceDownload(Downloader):
         return self._actual_start or self._start_time
 
     def clear_space(self):
-        try:
-            os.remove(self.output_fpath)
-        except FileNotFoundError:
-            pass
+        if output_fpath := self.output_fpath:
+            try:
+                os.remove(output_fpath)
+            except FileNotFoundError:
+                pass
 
     def clip_args(
         self,
@@ -137,6 +138,11 @@ class TwSpaceDownload(Downloader):
     ) -> Iterable[str]:
 
         assert sseof is not None or ss is not None
+
+        clip_fpath += ".m4a"
+
+        if not self.output_fpath:
+            raise FileNotFoundError()
 
         args = [
             ffmpeg,

@@ -15,6 +15,7 @@ class Downloader(ABC):
 
     @abstractmethod
     def __init__(self, url: str, output_fpath: str, **info_dict):
+        "Raises assertion error if the url is not valid and live. (not always.)"
         ...
 
     @abstractmethod
@@ -55,4 +56,10 @@ class Downloader(ABC):
         ffmpeg=...,
     ) -> Iterable[str]:
         "Returns a list of ffmpeg args for clipping."
+        ...
+    
+    @property
+    @abstractmethod
+    def output_fpath(self) -> Optional[str]:
+        "Path of the downloaded file, or None if not available."
         ...

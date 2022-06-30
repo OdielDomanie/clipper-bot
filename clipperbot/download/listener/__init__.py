@@ -23,7 +23,7 @@ if twspace_support:
 
 
 async def get_listener(url: str) -> tuple[Type[Listener], str]:
-    "Get a listener class that supports the url and or raise ValueError with a sendable message."
+    "Get a listener class that supports the url and a sanitized url, or raise ValueError with a sendable message."
     for plat in platforms:
         if not plat.general_validate(url):
             continue

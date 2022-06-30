@@ -55,8 +55,14 @@ class YTDownload(YtdlDownload):
         audio_only: bool = False,
         ffmpeg=FFMPEG,
     ) -> Iterable[str]:
+        "`clip_fpath` should not have file name extension."
 
         assert sseof is not None or ss is not None
+
+        clip_fpath += ".m4a" if audio_only else ".mp4"
+
+        if not self.output_fpath:
+            raise FileNotFoundError
 
         args = [
             ffmpeg,

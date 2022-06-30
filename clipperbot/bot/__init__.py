@@ -1,12 +1,13 @@
 import asyncio
 import logging
+from typing import Optional
 import discord
 from discord.ext import commands
 from ..utils import PersistentDict, PersistentSetDict, manserv_or_owner
-from ..video.download import StreamDownload
-from . import streams
 from .deletables import DeletableMessages
 from .help_strings import help_description
+from ..download.listen import ListenManager
+from ..download.listener import get_listener
 
 from .. import DOWNLOAD_DIR, MAX_DOWNLOAD_STORAGE, DEF_CLIP_DURATION, MAX_DURATION
 
@@ -70,25 +71,49 @@ class ClipBot(commands.Bot):
 
         # {text_chn : channel_url}
         self.channel_mapping = PersistentDict(database, "channels", int, str)
-        self.listens: dict[discord.TextChannel, asyncio.Task] = {}
+        # self.listens: dict[discord.TextChannel, asyncio.Task] = {}
         self.ready = False
 
         self.check(lambda ctx: self.ready)
 
-        self.streams: dict[discord.TextChannel, StreamDownload] = {}
+        # self.streams: dict[discord.TextChannel, StreamDownload] = {}
         self.active_files: list[str] = []
         self.first_on_ready = True
         self.logger = logging.getLogger("clipping.bot")
         self.logger.info("Clipbot initiliazing.")
 
-        self.add_command(ClipBot.info)
+        self.add_command(ClipBot.info)  # type: ignore
         self.add_cog(DeletableMessages(self, 1000))
         self.load_extension(".user", package="clipperbot.bot")
         self.load_extension(".admin", package="clipperbot.bot")
 
         self.help_command = commands.DefaultHelpCommand(no_category='Info')
 
+        self.listen_mans: list[tuple[discord.TextChannel, ListenManager]] = []
+        self.one_time_listens: list[tuple[discord.TextChannel, ListenManager]] = []
+        self.registered_chns = PersistentSetDict(database, "registered_chns", depth=1)  # {txtchn_id, {chn_url,}}
+
         self.migrate_role_perms()
+        self.migrate_chn_mapping()
+
+    def get_listener(self, txt_chn: discord.TextChannel, name: Optional[str] = None) -> Optional[ListenManager]:
+        """Get listener of a text channel. Get one by a name if there are multiple, if `name` is provided.
+        Otherwise, prioritize one-time and latest.
+        """
+        if name:
+            raise NotImplementedError()
+
+        listen_man = None
+        for txt_chn_, lisman in self.listen_mans:
+            if txt_chn_ == txt_chn:
+                listen_man = lisman
+                break
+        for txt_chn_, lisman in self.one_time_listens:
+            if txt_chn == txt_chn:
+                listen_man = lisman
+                break
+
+        return listen_man
 
     def migrate_role_perms(self):
         for guild_id in self.role_perms:
@@ -97,22 +122,28 @@ class ClipBot(commands.Bot):
         self.role_perms.drop()
         del self.role_perms
 
+    def migrate_chn_mapping(self):
+        for txtchn_id, chn_url in self.channel_mapping.items():
+            self.registered_chns.add(txtchn_id, value=chn_url)
+        self.channel_mapping.drop()
+
     def check_perms(self, ctx: commands.Context):
+        assert ctx.command
         category = ctx.command.cog_name
         parents = ctx.invoked_parents
         name = ctx.command.name
         alias = ctx.invoked_with
 
-        guild: int = ctx.guild.id
-        channel: int = ctx.channel.id
-        member: discord.Member = ctx.author
+        guild: int = ctx.guild.id  # type: ignore
+        channel: int = ctx.channel.id  # type: ignore
+        member: discord.Member = ctx.author  # type: ignore
         if not isinstance(member, discord.Member):
             return False
         roles: list[discord.Role] = member.roles
 
         if category == "Admin" and alias != "help":
             role_names = [role.name for role in roles]
-            self.logger.info(f"{member.name} tried {alias}. Roles: {role_names}")
+            self.logger.info(f"{member.name} tried {alias}. Roles: {role_names}")  # type: ignore
 
         if manserv_or_owner(ctx):
             self.logger.debug("has manage server permission or is owner")
@@ -176,6 +207,7 @@ class ClipBot(commands.Bot):
         if (
             name != "role_permission"
             and "role_permission" not in parents
+            # TODO: Is this broken??
             and (
                 role_name in self.command_role_perms[guild, "Admin"]
                 or role_name in self.command_role_perms[guild, "role_permission"]
@@ -203,7 +235,7 @@ class ClipBot(commands.Bot):
             self.logger.debug(exception)
 
     @commands.command(name="info")
-    async def info(ctx: commands.Context):
+    async def info(ctx: commands.Context):  # type: ignore  # I don't know how this works
         no_mention = discord.AllowedMentions(users=False)
         info_string = (
             """Created by <@148192808904163329>.
@@ -213,7 +245,7 @@ class ClipBot(commands.Bot):
 
     def _get_prefix(self, bot: commands.Bot, msg: discord.Message):
         try:
-            custom_prefix = self.prefixes[msg.guild.id]
+            custom_prefix = self.prefixes[msg.guild.id]  # type: ignore
             return [custom_prefix, self.default_prefix]
         except KeyError:
             return [self.default_prefix]
@@ -265,20 +297,17 @@ class ClipBot(commands.Bot):
                 if txt_chn is None:
                     continue
 
-                listen_task = asyncio.create_task(
-                    streams.listen(self, txt_chn, chn_url))
-                self.listens[txt_chn] = listen_task
+                # listen_task = asyncio.create_task(
+                #     streams.listen(self, txt_chn, chn_url))
+                # self.listens[txt_chn] = listen_task
+
+                listener, san_chn_url = await get_listener(chn_url)
+
+                listen_man = ListenManager(san_chn_url, listener)
+                listen_man.start()
+                self.listen_mans.append((txt_chn, listen_man))
 
                 await asyncio.sleep(1)  # to avoid stacking the threads
-
-            asyncio.create_task(
-                streams.periodic_cleaning(
-                    DOWNLOAD_DIR,
-                    MAX_DOWNLOAD_STORAGE,
-                    self.active_files,
-                    frequency=180,
-                )
-            )
 
         self.first_on_ready = False
         self.ready = True

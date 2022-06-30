@@ -1,9 +1,10 @@
 import asyncio
 import os
+import discord as dc
 from discord.ext import commands
-from . import streams
-from ..video.download import (sanitize_chnurl, sanitize_vid_url, RateLimited)
 from . import help_strings
+from ..download.listener import get_listener
+from ..download.listen import ListenManager
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from . import ClipBot
@@ -28,7 +29,7 @@ class Admin(commands.Cog):
     async def channel_permission(self, ctx: commands.Context):
         allowed_commands = set()
         for guild_com_tuple, chn_id in self.bot.command_txtchn_perms.items():
-            if ctx.guild.id == guild_com_tuple[0] and ctx.channel.id in chn_id:
+            if ctx.guild.id == guild_com_tuple[0] and ctx.channel.id in chn_id:  # type: ignore
                 allowed_commands.add(guild_com_tuple[1])
 
         if len(allowed_commands) == 0:
@@ -63,7 +64,7 @@ class Admin(commands.Cog):
     async def role_permission(self, ctx: commands.Context):
         allowed_roles = set()
         for guild_com_tuple, role_names in self.bot.command_role_perms.items():
-            if ctx.guild.id == guild_com_tuple[0]:
+            if ctx.guild.id == guild_com_tuple[0]:  # type: ignore
                 if len(role_names) != 0:
                     tuple_str = f"({guild_com_tuple[1]}: {', '.join(role_names)})"
                     allowed_roles.add(tuple_str)
@@ -176,28 +177,69 @@ class Admin(commands.Cog):
         else:
             await ctx.send("No channel registered.")
 
+    @commands.command(
+        brief="",
+        help=help_strings.reset_description
+    )
+    async def reset(self, ctx):
+        txtchn = ctx.channel
+
+        for txtchn_, listen_man in self.bot.listen_mans:
+            if txtchn == txtchn_:
+                if listen_man.download:
+                    out_fpath = listen_man.download.download.output_fpath
+                    if out_fpath:
+                        try:
+                            os.remove(out_fpath)
+                            self.bot.logger.warning(f"Deleted {out_fpath}")
+                        except FileNotFoundError:
+                            self.bot.logger.warning(f"Tried to {out_fpath}, but not found.")
+
+        await ctx.reply(f"Deleted download cache, please don't do this.")
+
+    def _find_listenman(self, txtchn: dc.TextChannel, chn_url: str, one_times=False):
+        "Return the listen manager of the chn_url in th  txtchn, or None if not found."
+        listen_mans = self.bot.one_time_listens if one_times else self.bot.listen_mans
+        for txtchn_id, listen_man in listen_mans:
+            if txtchn.id == txtchn_id and listen_man.url == chn_url:
+                return listen_man
+        return None
+
+    async def _register(self, txtchn: dc.TextChannel, chn_url: str):
+        listener, san_chn_url = await get_listener(chn_url)
+
+        if self._find_listenman(txtchn, san_chn_url):
+            raise KeyError("The channel is already being listened to.")
+
+        listen_man = ListenManager(san_chn_url, listener)
+        listen_man.start()
+        self.bot.listen_mans.append((txtchn, listen_man))
+        self.bot.registered_chns.add(txtchn.id, value=san_chn_url)
+
+        if one_listen_man := self._find_listenman(txtchn, san_chn_url, one_times=True):
+            one_listen_man.stop()
+
     register_brief = "Make clipping available on this text-channel."
     @commands.command(brief=register_brief)
     async def register(self, ctx, channel_url):
         """Make this channel available for clipping.
         When `channel_url` goes live, the bot will automatically start
         capturing.
-        If this text-channel is already registered, it is automatically
-        unregistered first.
         """
+
         channel_url = channel_url.strip('<>')
-        async with self.register_lock:
-            try:
-                self._unregister(ctx.channel)
-            except KeyError:
-                pass
 
-            try:
-                await self._register(ctx, channel_url)
-            except ValueError:
-                await ctx.reply("The url must be the url to the channel.")
-                return
-
+        try:
+            await self._register(ctx.channel, channel_url)
+        except ValueError as e:
+            if "are currently supported" in e.args[0]:
+                await ctx.reply("The url must be a url to a channel/account. " + e.args[0])
+            else:
+                raise
+        except KeyError:
+            await ctx.reply(f"The url is already registered.")
+        else:
+            # TODO: Fix this.
             await ctx.send(
                 f"Registered <{self.bot.channel_mapping[ctx.channel.id]}> on this"
                 " channel."
@@ -206,15 +248,55 @@ class Admin(commands.Cog):
     @commands.command()
     async def unregister(self, ctx):
         "Make clipping unavailable on this text channel."
-        async with self.register_lock:
-            try:
-                chn_url = self._unregister(ctx.channel)
-                await ctx.send(f"<{chn_url}> unregistered from {ctx.channel.name}.")
-            except KeyError:
-                await ctx.send(f"No channel registered on {ctx.channel.name}.")
+        removed_urls = []
+        for txtchn_id, listen_man in list(self.bot.listen_mans):
+            if ctx.channel.id == txtchn_id:
+                listen_man.stop()
+                try:
+                    self.bot.listen_mans.remove((txtchn_id, listen_man))
+                except ValueError:
+                    pass
+                try:
+                    self.bot.registered_chns.remove(txtchn_id, value=listen_man.url)
+                except ValueError:
+                    pass
+                removed_urls.append(listen_man.url)
 
-    stream_cancels: dict[str, bool] = {}
-    stream_id_counter = 0
+        for txtchn_id, listen_man in list(self.bot.one_time_listens):
+            if ctx.channel.id == txtchn_id:
+                listen_man.stop()
+                try:
+                    self.bot.one_time_listens.remove((txtchn_id, listen_man))
+                except ValueError:
+                    pass
+                removed_urls.append(listen_man.url)
+
+        if not removed_urls:
+            await ctx.reply("No channel is registered.")
+        else:
+            await ctx.reply(f"Unregistered channel{'' if len(removed_urls) == 1 else 's'}.")
+
+    async def _one_time_stream(self, ctx, url: str):
+        txtchn: dc.TextChannel = ctx.channel
+        listener_platform, san_chn_url = await get_listener(url)
+
+        if (self._find_listenman(txtchn, san_chn_url, one_times=True)
+            or self._find_listenman(txtchn, san_chn_url, one_times=False)
+        ):
+            raise KeyError
+
+        listen_man = ListenManager(san_chn_url, listener_platform)
+
+        async def end_hook():
+            listen_man.stop()
+            try:
+                self.bot.one_time_listens.remove((txtchn, listen_man))
+            except KeyError:
+                pass
+
+        listen_man.start(end_hooks=(end_hook,))
+
+        self.bot.one_time_listens.append((txtchn, listen_man))
 
     @commands.group(
         invoke_without_command=True,
@@ -222,52 +304,22 @@ class Admin(commands.Cog):
     async def stream(self, ctx, vid_url: str):
         "Start a one-time capture of a stream from a direct url."
         vid_url = vid_url.strip('<>')
-        try:
-            vid_url, website = sanitize_vid_url(vid_url)
-        except ValueError:
-            await ctx.reply(
-                "Only `youtube.com` ,`twitch.tv` or `twitter.com/i/spaces/` urls are"
-                " supported."
-            )
-            return
 
-        old_chn = None
         try:
-            old_chn = self._unregister(ctx.channel)
+            await self._one_time_stream(ctx, vid_url)
+        except ValueError as e:
+            if "are currently supported" in e.args[0]:
+                await ctx.reply("The url must be a url to a channel/account. " + e.args[0])
+            else:
+                raise
         except KeyError:
-            pass
-
-        # Increase the ratelimit for the capturing message
-        if ctx.channel.id in streams.auto_msg_ratelimits:
-            try:
-                streams.auto_msg_ratelimits[ctx.channel.id].pool.popleft()
-                streams.auto_msg_ratelimits[ctx.channel.id].pool.popleft()
-            except IndexError:
-                pass
-
-        stream_task = asyncio.create_task(
-            streams.one_time_listen(self.bot, ctx.channel, vid_url),
-            name="one_time " + str(Admin.stream_id_counter),
-        )
-        Admin.stream_id_counter += 1
-        self.bot.listens[ctx.channel] = stream_task
-
-        try:
-            await stream_task
-
-        except RateLimited:
-            await ctx.send(f"Ratelimited by {website}! :(")
-        except ValueError:
-            await ctx.reply("Invalid url.")
-
-        finally:
-
-            if old_chn is not None:
-                try:
-                    self._unregister(ctx.channel)
-                except KeyError:
-                    pass
-                self._register_wo_sanitize(ctx, old_chn)
+            await ctx.reply(f"The url is already registered.")
+        else:
+            # TODO: Fix this.
+            await ctx.send(
+                f"Registered <{self.bot.channel_mapping[ctx.channel.id]}> on this"
+                " channel."
+            )
 
     @stream.command(
         brief="Stop the stream command.",
@@ -275,75 +327,16 @@ class Admin(commands.Cog):
     )
     async def stop(self, ctx):
         txtchn = ctx.channel
-        # stop stream
-        self.bot.logger.info(f"Stopping stream at {txtchn.name}.")
-        if txtchn in self.bot.listens:
-            listen_task = self.bot.listens[txtchn]
 
-            task_name = listen_task.get_name()
-            if task_name.split()[0] == "one_time":
-                is_cancelled = Admin.stream_cancels.setdefault(
-                    task_name.split()[1], False
-                )
-                if not is_cancelled:
-                    listen_task.cancel()
-                    Admin.stream_cancels[task_name.split()[1]] = True
-            else:
-                listen_task.cancel()
+        one_listen_mans = [
+            listen_man for chn, listen_man in self.bot.one_time_listens if chn == txtchn
+        ]
+        self.bot.logger.info(f"Stopping streams at {txtchn.name}: {one_listen_mans}")
 
-            del self.bot.listens[txtchn]
+        for listen_man in one_listen_mans:
+            listen_man.stop()
 
+        if one_listen_mans:
             await ctx.reply("Stopped one-time capturing.")
-
-    async def _register(self, ctx, channel_url):
-        san_chn_url = await sanitize_chnurl(channel_url)
-        self.bot.channel_mapping[ctx.channel.id] = san_chn_url
-        listen_task = asyncio.create_task(
-            streams.listen(self.bot, ctx.channel, san_chn_url)
-        )
-        self.bot.listens[ctx.channel] = listen_task
-
-    def _register_wo_sanitize(self, ctx, channel_url):
-        self.bot.channel_mapping[ctx.channel.id] = channel_url
-        listen_task = asyncio.create_task(
-            streams.listen(self.bot, ctx.channel, channel_url)
-        )
-        self.bot.listens[ctx.channel] = listen_task
-
-    def _unregister(self, txtchn):
-        # stop stream
-        self.bot.logger.info(f"Unregistering {txtchn.name}.")
-        if txtchn in self.bot.listens:
-            listen_task = self.bot.listens[txtchn]
-
-            task_name = listen_task.get_name()
-            if task_name.split()[0] == "one_time":
-                is_cancelled = Admin.stream_cancels.setdefault(
-                    task_name.split()[1], False
-                )
-                if not is_cancelled:
-                    listen_task.cancel()
-                    Admin.stream_cancels[task_name.split()[1]] = True
-            else:
-                listen_task.cancel()
-
-            del self.bot.listens[txtchn]
-
-        chn_url = self.bot.channel_mapping[txtchn.id]
-        del self.bot.channel_mapping[txtchn.id]
-
-        return chn_url
-
-    @commands.command(
-        brief="",
-        help=help_strings.reset_description
-    )
-    async def reset(self, ctx):
-        stream_download = self.bot.streams[ctx.channel]
-        try:
-            os.remove(stream_download.filepath)
-        except FileNotFoundError:
-            try:
-                os.remove(stream_download.filepath + ".part")
-            except FileNotFoundError:
-                pass
+        else:
+            await ctx.reply("No on-going one-time streams.")

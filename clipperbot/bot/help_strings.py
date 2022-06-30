@@ -97,4 +97,4 @@ Valid position arguments: `everyone`, `{"`, `".join(CROP_STR.keys())}`"""
 
 stream_stop_description = \
 """Stop the stream command.
-This is not needed for streams that end naturally by itself, but for streams that go on indefinetely."""
+This is not needed for streams that end naturally by itself, but for streams that go on indefinitely."""
