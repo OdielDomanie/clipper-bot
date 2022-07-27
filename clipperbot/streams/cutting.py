@@ -1,11 +1,11 @@
 import asyncio as aio
-from asyncio import subprocess as sp
 import logging
 import os
 import os.path
 import random
 import shlex
 import sys
+from asyncio import subprocess as sp
 from typing import Iterable
 
 from .. import FFMPEG

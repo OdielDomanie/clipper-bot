@@ -5,7 +5,6 @@ import dotenv
 
 from config import *
 
-
 dotenv.load_dotenv()
 
 HOLODEX_TOKEN: str = os.getenv("HOLODEX_TOKEN")  # type: ignore

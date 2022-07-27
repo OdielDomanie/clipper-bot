@@ -1,11 +1,12 @@
 import asyncio as aio
 import logging
+
 from ..url_finder import get_stream_url
+from ..yt_dlp_extractor import fetch_yt_metadata
 from . import all_streams
 from .base import Stream, StreamStatus
-from .yt import YTStream
 from .ttv import TTVStream
-from ..yt_dlp_extractor import fetch_yt_metadata
+from .yt import YTStream
 
 
 logger = logging.getLogger(__name__)

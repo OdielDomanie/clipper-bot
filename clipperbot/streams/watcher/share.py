@@ -3,9 +3,8 @@ import logging
 from typing import Callable, Type
 
 from ..stream.base import Stream
-from .base import Watcher
 from . import Sharer, watchers
-
+from .base import Watcher
 from .ttv import TtvWatcher
 from .yt_chn import YtChnWatcher
 from .yt_stream import YtStrmWatcher

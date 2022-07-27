@@ -5,10 +5,9 @@ from typing import Mapping
 from urllib import parse
 
 import aiohttp
-import dateutil.parser
 
-from ...utils import ExpBackoff
 from ... import HOLODEX_TOKEN
+from ...utils import ExpBackoff
 
 
 logger = logging.getLogger(__name__)

@@ -1,23 +1,21 @@
 import logging
 from typing import TYPE_CHECKING, Any, Collection, Optional
 
+import discord as dc
 import discord.app_commands as ac
 import discord.ext.commands as cm
-import discord as dc
 
-from ..vtuber_names import get_all_chns_from_name
-
-from ..streams.stream.get_stream import get_stream
-
-from ..streams.url_finder import get_channel_url, get_stream_url
-from .exceptions import StreamNotLegal
 from ..persistent_dict import PersistentSetDict
-from ..streams.stream.base import Stream
 from ..streams.stream import all_streams
-from ..utils import thinking
+from ..streams.stream.get_stream import get_stream
+from ..streams.url_finder import get_channel_url, get_stream_url
 from ..streams.watcher.share import WatcherSharer, create_watch_sharer
+from ..utils import thinking
+from ..vtuber_names import get_all_chns_from_name
+from .exceptions import StreamNotLegal
 
 if TYPE_CHECKING:
+    from ..streams.stream.base import Stream
     from .bot import ClipperBot
 
 
@@ -29,7 +27,7 @@ class _add_to_psd:
         self.psd = psd
         self.key = key
 
-    def __call__(self, stream: Stream):
+    def __call__(self, stream: "Stream"):
         self.psd.add(self.key, stream.unique_id)
 
 
@@ -228,9 +226,9 @@ class Admin(cm.Cog):
             self.onetime_streams.remove((ctx.channel.id,), ws)
             ws.stop()
 
-    def get_streams(self, chn_id: int) -> Collection[tuple[float, Stream]]:
+    def get_streams(self, chn_id: int) -> Collection[tuple[float, "Stream"]]:
         "Return streams that can be clipped in this txt channel that already are in the cache."
-        res = set[tuple[float, Stream]]()
+        res = set[tuple[float, "Stream"]]()
         for s in all_streams.values():
             if s.channel_url in [w.targets_url for w in self.registers[chn_id,]]:
                 res.add((0, s))
@@ -240,7 +238,7 @@ class Admin(cm.Cog):
 
         return res
 
-    async def get_stream_if_legal(self, chn_id: int, stream_name: str) -> Stream | None:
+    async def get_stream_if_legal(self, chn_id: int, stream_name: str) -> "Stream" | None:
         """Return the stream if found.
         Can raise StreamNotLegal.
         """
@@ -248,7 +246,7 @@ class Admin(cm.Cog):
             if s.stream_url == stream_name or s.title == stream_name:
                 return s
 
-        s: Stream | None = await get_stream(stream_name)
+        s: "Stream" | None = await get_stream(stream_name)
         if s is None:
             return None
 

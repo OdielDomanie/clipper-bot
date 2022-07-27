@@ -1,7 +1,7 @@
 from typing import Generator
-from .persistent_dict import PersistentDict
 
 from . import CHANNELS_LIST_DB
+from .persistent_dict import PersistentDict
 
 
 # {chn_id: ((chn_url,), streamer_name, en_name)}

@@ -1,11 +1,10 @@
-import asyncio as aio
+import logging
 import pickle
 import sqlite3
-from typing import AsyncGenerator, Callable, Collection, Generator, Hashable, TypeVar
-import logging
 import time
-from collections.abc import MutableMapping
 from ast import literal_eval
+from collections.abc import MutableMapping
+from typing import Callable, Collection, Hashable, TypeVar
 
 
 logger = logging.getLogger("taggerbot.utils")

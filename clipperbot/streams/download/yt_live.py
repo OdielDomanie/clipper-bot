@@ -1,15 +1,14 @@
 import asyncio as aio
-from asyncio.subprocess import create_subprocess_exec, DEVNULL, PIPE
 import logging
 import os
 import shlex
 import sys
 import time
+from asyncio.subprocess import DEVNULL, PIPE, create_subprocess_exec
 
 import psutil
 
 from ..exceptions import DownloadBlocked, DownloadForbidden, RateLimited
-
 
 logger = logging.getLogger(__name__)
 

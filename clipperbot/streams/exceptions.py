@@ -1,7 +1,6 @@
 class DownloadCacheMissing(Exception):
     pass
 
-
 class DownloadBlocked(Exception):
     pass
 

@@ -3,9 +3,8 @@ import logging
 import re
 from typing import Collection
 
-from .yt_dlp_extractor import fetch_yt_metadata
-
 from ..vtuber_names import get_chns_from_name
+from .yt_dlp_extractor import fetch_yt_metadata
 
 
 logger = logging.getLogger(__name__)

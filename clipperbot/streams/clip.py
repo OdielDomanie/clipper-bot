@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 from .cutting import screenshot
 
+
 @dataclass(eq=True, frozen=True)
 class Clip:
     fpath: str

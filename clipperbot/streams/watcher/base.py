@@ -1,10 +1,11 @@
 import asyncio as aio
-from abc import ABC, abstractmethod
 import logging
+from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Callable
 
-from ..stream.base import Stream, StreamStatus, StreamWithActDL
 from ... import POLL_PERIOD
+from ..stream.base import Stream, StreamStatus, StreamWithActDL
+
 
 if TYPE_CHECKING:
     from .share import WatcherSharer

@@ -4,9 +4,7 @@ import time
 
 import yt_dlp
 
-from ..utils import timed_cache
-
-from .exceptions import DownloadBlocked, DownloadForbidden, RateLimited
+from .exceptions import RateLimited
 
 
 logger = logging.getLogger(__name__)
@@ -14,7 +12,6 @@ logger = logging.getLogger(__name__)
 
 # {url: [last_dtime, {err1, err2,}]}
 repeated_errors: dict[str, list] = {}
-# @timed_cache(10)  # This function is recursive, the dec has a lock
 def fetch_yt_metadata(url: str, *, no_playlist=True, playlist_items=None):
     """Fetches metadata of url, with `noplaylist`.
     Returns `info_dict`. Can raise `RateLimited`.

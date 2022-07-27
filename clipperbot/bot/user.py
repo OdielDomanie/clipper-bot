@@ -1,30 +1,27 @@
-from dataclasses import dataclass
 import functools
 import logging
 import os
 import pickle
 import sys
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Optional
 
 import discord as dc
-from discord.ext import commands as cm
-from discord import app_commands as ac
-
 from clipperbot.bot.exceptions import StreamNotLegal
+from discord import app_commands as ac
+from discord.ext import commands as cm
 
-from .admin import Admin
-from . import help_strings
+from .. import DEF_AGO, DEF_DURATION, MAX_DURATION
 from ..persistent_dict import PersistentDict
-from ..streams.clip import Clip
 from ..streams.exceptions import DownloadCacheMissing
-from ..streams.stream.base import Stream
 from ..streams.stream import all_streams
 from ..utils import deltatime_to_str, rreload, thinking
 from ..webserver import serveclips
+from . import help_strings
 
-from .. import DEF_AGO, DEF_DURATION, MAX_DURATION
-
-from typing import TYPE_CHECKING, Any, Collection, Optional
 if TYPE_CHECKING:
+    from ..streams.clip import Clip
+    from ..streams.stream.base import Stream
     from .admin import Admin as AdminCog
     from .bot import ClipperBot
 
@@ -57,7 +54,7 @@ class _SentClip:
     user_id: int
 
 
-def delete_clip_file(clip: Clip | _SentClip):
+def delete_clip_file(clip: "Clip" | _SentClip):
     if not clip.fpath:
         return
     try:
@@ -100,7 +97,6 @@ class Clipping(cm.Cog):
         if TYPE_CHECKING:
             assert isinstance(cog, AdminCog)
         self.admin_cog = cog
-        assert isinstance(self.admin_cog, Admin)
         self._settings = self.admin_cog.settings
 
     async def stream_autocomp(self, it: dc.Interaction, curr: str) -> list[ac.Choice]:
@@ -210,7 +206,7 @@ class Clipping(cm.Cog):
 
             if not clipped_stream:
                 try:
-                    clipped_stream: Stream | None = await self.admin_cog.get_stream_if_legal(
+                    clipped_stream: "Stream" | None = await self.admin_cog.get_stream_if_legal(
                         ctx.channel.id, stream,
                     )
                 except StreamNotLegal:
@@ -292,7 +288,7 @@ class Clipping(cm.Cog):
     async def create_n_send_clip(
         self,
         ctx:cm.Context[ClipperBot],
-        clipped_stream: Stream,
+        clipped_stream: "Stream",
         ts: float | None,
         ago_t: float | None,
         duration_t: float,
@@ -322,7 +318,7 @@ class Clipping(cm.Cog):
                 await ctx.interaction.delete_original_message()
                 await ctx.send("The time range is no longer in my cache 😕", ephemeral=True)
 
-    async def send_clip(self, ctx: cm.Context[ClipperBot], clip: Clip):
+    async def send_clip(self, ctx: cm.Context[ClipperBot], clip: "Clip"):
         assert ctx.guild
 
         if clip.size <= ctx.guild.filesize_limit:
