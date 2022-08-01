@@ -14,34 +14,34 @@ async def get_channel_url(chn_name: str) -> Collection[str]:
     "Get a list of sanitized urls."
 
     result = list[str]()
+
+    if chn_id := re.search(  # youtube url
+        r"(?<=youtube\.com\/channel\/)([a-zA-Z0-9\-_]{24})(?![a-zA-Z0-9\-_])",
+        chn_name,
+    ):
+        return ("https://www.youtube.com/channel/" + chn_id.group(),)
+
+    elif streamer_name := re.search(  # twitch
+        r"(?<=twitch\.tv\/)([a-zA-Z0-9\-_]+?)(?![a-zA-Z0-9\-_])",
+        chn_name,
+    ):
+        return ("https://www.twitch.tv/" + streamer_name.group(),)
+
+    elif "youtube.com/watch" in chn_name or "youtu.be/" in chn_name:  # Stream urls are invalid.
+        return []
+    elif "twitch.tv/videos/" in chn_name:  # twitch_vod
+        return []
+    elif len(chn_name) == 24:  # chn id
+        return ("https://www.youtube.com/channel/" + chn_name,)
+
+    try:
+        _, channel_urls, _, _ = get_chns_from_name(chn_name)
+    except KeyError:
+        pass
+    else:
+        return channel_urls
+
     if "." in chn_name and "/" in chn_name:  # a url
-
-        if chn_id := re.search(  # youtube url
-            r"(?<=youtube\.com\/channel\/)([a-zA-Z0-9\-_]{24})(?![a-zA-Z0-9\-_])",
-            chn_name,
-        ):
-            return ("https://www.youtube.com/channel/" + chn_id.group(),)
-
-        elif streamer_name := re.search(  # twitch
-            r"(?<=twitch\.tv\/)([a-zA-Z0-9\-_]+?)(?![a-zA-Z0-9\-_])",
-            chn_name,
-        ):
-            return ("https://www.twitch.tv/" + streamer_name.group(),)
-
-        elif "youtube.com/watch" in chn_name or "youtu.be/" in chn_name:  # Stream urls are invalid.
-            return []
-        elif "twitch.tv/videos/" in chn_name:  # twitch_vod
-            return []
-        elif len(chn_name) == 24:  # chn id
-            return ("https://www.youtube.com/channel/" + chn_name,)
-
-        try:
-            _, channel_urls, _, _ = get_chns_from_name(chn_name)
-        except KeyError:
-            pass
-        else:
-            return channel_urls
-
         # Unknown, try our best.  # TODO: Security vulnerability ???
         info_dict = await aio.to_thread(fetch_yt_metadata, chn_name)
         if info_dict and 'channel_url' in info_dict:
