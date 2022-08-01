@@ -55,6 +55,7 @@ class Poller(Watcher):
         self.stream_off = aio.Event()
         self.stream_off.set()
         self._watch_task: aio.Task | None = None
+        self.start_hooks = {}
 
     @abstractmethod
     async def _poll(self) -> None | Stream:
