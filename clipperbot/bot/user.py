@@ -2,7 +2,6 @@ import functools
 import logging
 import os
 import pickle
-import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional
 
@@ -11,7 +10,7 @@ from clipperbot.bot.exceptions import StreamNotLegal
 from discord import app_commands as ac
 from discord.ext import commands as cm
 
-from .. import DEF_AGO, DEF_DURATION, MAX_DURATION
+from .. import DEF_AGO, DEF_DURATION, MAX_CLIPS_SIZE, MAX_DURATION
 from ..persistent_dict import PersistentDict
 from ..streams.exceptions import DownloadCacheMissing
 from ..streams.stream import all_streams
@@ -438,6 +437,14 @@ class Clipping(cm.Cog):
                 f"File size: {clip.size/(1024*1024):.2f} MB, cannot post as attachment.",
                 ephemeral=True,
             )
+        # Now clean the directory to match the max size.
+        directory = os.path.dirname(clip.fpath)
+        files = [os.path.join(directory, f) for f in os.listdir(directory)]
+        total_size = sum(os.path.getsize(f) for f in files if os.path.isfile(f))
+        excess = total_size - MAX_CLIPS_SIZE
+        for f in sorted(files, key=os.path.getmtime):
+            logger.info(f"Removing clip file {f}")
+            os.remove(f)
 
     # Message deleting
     # INTENTS: reactions

@@ -292,11 +292,24 @@ class YTStream(StreamWithActDL):
         while cleaned_size < size or not all_files:
             li, path, stat = all_files.pop()
             path.unlink(missing_ok=True)
+            logger.info(f"Deleted: {path}")
             if li:
                 li[0].remove(li[1])
             cleaned_size += stat.st_size
         all_streams[self.unique_id] = self
         return cleaned_size
+
+    def used_files(self) -> list[str]:
+        res = []
+        if self._download:
+            res.append(self._download.output_fpath)
+        for end_time, d in self._past_actdl:
+            res.append(d.output_fpath)
+        for a, b, fpath in self._past_segments_live:
+            res.append(fpath)
+        for a, b, fpath in self._past_segments_vod:
+            res.append(fpath)
+        return res
 
     #pickling
     def __getstate__(self) -> dict:

@@ -1,3 +1,4 @@
+import asyncio as aio
 import logging
 from typing import TYPE_CHECKING, Any, Collection, Optional
 
@@ -5,15 +6,16 @@ import discord as dc
 import discord.app_commands as ac
 import discord.ext.commands as cm
 
-from ..persistent_dict import OldPersistentDict, PersistentDict, PersistentSetDict
-from ..streams.stream import all_streams
+from .. import MAX_DL_SIZE
+from ..persistent_dict import OldPersistentDict, PersistentSetDict
+from ..streams.stream import all_streams, clean_space
 from ..streams.stream.get_stream import get_stream
 from ..streams.url_finder import get_channel_url, get_stream_url
 from ..streams.watcher.share import WatcherSharer, create_watch_sharer
 from ..utils import thinking
 from ..vtuber_names import get_all_chns_from_name
-from .exceptions import StreamNotLegal
 from . import help_strings
+from .exceptions import StreamNotLegal
 
 if TYPE_CHECKING:
     from ..streams.stream.base import Stream
@@ -52,6 +54,8 @@ class Admin(cm.Cog):
         # {guild_id: perm}
         self.possible_link_perms = {"false", "true"}
         self.link_perms = OldPersistentDict(bot.database, "link_perms", int, str)
+
+        aio.create_task(clean_space())
 
     def _registered_chns(self, chn_id: int, exclude_url=()) -> str:
         "Formatted string of list of registered channels."

@@ -104,6 +104,10 @@ class Stream(ABC):
     def clean_space(self, size: int) -> int:
         "Clean up space from the download cache, for min the `size`."
 
+    @abstractmethod
+    def used_files(self) -> list[str]:
+        "List files that shouldn't be simply deleted."
+
     def __hash__(self) -> int:
         return hash(self.unique_id)
 
