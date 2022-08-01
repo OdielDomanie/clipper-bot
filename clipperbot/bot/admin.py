@@ -169,7 +169,7 @@ class Admin(cm.Cog):
                 try:
                     register = create_watch_sharer(san_url, (hook1, hook2))
                 except ValueError as e:
-                    logger.exception(e)
+                    logger.error(e)
                     continue
                 self.registers.add((ctx.channel.id,), register)
                 register.start()

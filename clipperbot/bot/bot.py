@@ -168,7 +168,7 @@ class ClipperBot(cm.Bot):
         if isinstance(
             exception,
             (cm.CommandInvokeError, cm.ConversionError)
-        ):
+        ) or context.interaction:
             return await super().on_command_error(context, exception)
         else:
             logger.debug(exception)
