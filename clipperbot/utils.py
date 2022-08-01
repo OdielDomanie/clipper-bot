@@ -10,7 +10,7 @@ import sys
 import threading
 import time
 from types import ModuleType
-from typing import Any, Callable, Collection, Coroutine, TypeVar
+from typing import Any, Awaitable, Callable, Collection, Coroutine, TypeVar
 
 import dateutil.parser
 import discord as dc
@@ -44,10 +44,11 @@ def req_manserv(f: Callable):
     return wrapped
 
 
+RS = TypeVar("RS")
 class RateLimit:
-    def __init__(self, interval: dt.timedelta, limit: int):
+    def __init__(self, interval: float, limit: int):
         self.interval = interval
-        self.pool = collections.deque(maxlen=limit)
+        self.pool = collections.deque[float](maxlen=limit)
         self._lock = asyncio.Lock()
         self.logger = logging.getLogger("clipping.bot.ratelimit")
 
@@ -55,13 +56,13 @@ class RateLimit:
         if len(self.pool) < self.pool.maxlen:  # type: ignore  # maxlen is given
             return 0
         else:
-            diff = dt.datetime.now() - self.pool[0]
+            diff = time.monotonic() - self.pool[0]
             if diff >= self.interval:
                 return 0
             else:
                 return self.interval - diff
 
-    def skip(self, cor):
+    def skip(self, cor: Callable[..., Awaitable[RS]]) -> Callable[..., Awaitable[RS | None]]:
         "Returns coroutine that will skip operation if within ratelimit."
         @functools.wraps(cor)
         async def wrapped(*args, **kwargs):
@@ -70,7 +71,7 @@ class RateLimit:
                     self.logger.info(f"Skipping {cor.__name__} .")
                     return
                 else:
-                    self.pool.append(dt.datetime.now())
+                    self.pool.append(time.monotonic())
                     return await cor(*args, **kwargs)
         return wrapped
 

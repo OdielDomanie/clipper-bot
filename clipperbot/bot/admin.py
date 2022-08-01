@@ -5,14 +5,14 @@ from typing import TYPE_CHECKING, Any, Collection, Optional
 import discord as dc
 import discord.app_commands as ac
 import discord.ext.commands as cm
+from discord.abc import MessageableChannel
 
-from .. import MAX_DL_SIZE
-from ..persistent_dict import OldPersistentDict, PersistentSetDict
+from ..persistent_dict import OldPersistentDict, PersistentDict, PersistentSetDict
 from ..streams.stream import all_streams, clean_space
 from ..streams.stream.get_stream import get_stream
 from ..streams.url_finder import get_channel_url, get_stream_url
 from ..streams.watcher.share import WatcherSharer, create_watch_sharer
-from ..utils import thinking
+from ..utils import RateLimit, thinking
 from ..vtuber_names import get_all_chns_from_name
 from . import help_strings
 from .exceptions import StreamNotLegal
@@ -25,13 +25,15 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class _add_to_psd:
+class _AddToPsd:
     def __init__(self, psd: PersistentSetDict, key: tuple):
         self.psd = psd
         self.key = key
 
-    def __call__(self, stream: "Stream"):
+    async def __call__(self, stream: "Stream"):
         self.psd.add(self.key, stream.unique_id)
+
+
 
 
 class Admin(cm.Cog):
@@ -56,6 +58,46 @@ class Admin(cm.Cog):
         self.link_perms = OldPersistentDict(bot.database, "link_perms", int, str)
 
         aio.create_task(clean_space())
+
+        class SendEnabledMsg:
+            def __init__(self, txtchn: MessageableChannel):
+                self.txtchn: MessageableChannel | dc.PartialMessageable = txtchn
+
+            # Prevent spamming in the case of a bug, as these messages can be sent
+            # without user prompt.
+            # The constants should be replaced by configs.
+            RT_TIME = 8 * 3600
+            RT_REQS = 4
+            capturing_msgs = PersistentDict[int, int](bot.database, "capturing_msgs")
+            auto_msg_ratelimits: dict[int, RateLimit] = {}  # {channel_id: RateLimit}
+            async def __call__(self, stream: "Stream"):
+                try:
+                    rate_limit = self.auto_msg_ratelimits.setdefault(
+                        self.txtchn.id,
+                        RateLimit(self.RT_TIME, self.RT_REQS),
+                    )
+                    skipping_msg = rate_limit.skip(self.txtchn.send)
+                    msg = await skipping_msg(f"🎦 Clipping enabled for: {stream.title} (<{stream.stream_url}>)")
+                    if msg is not None:
+                        if self.txtchn.id in self.capturing_msgs:
+                            try:
+                                old_msg = self.txtchn.get_partial_message(  # type: ignore
+                                    self.capturing_msgs[self.txtchn.id]
+                                )
+                                await old_msg.delete()
+                            except Exception:
+                                pass
+                        self.capturing_msgs[self.txtchn.id] = msg.id
+                except Exception as e:
+                    logger.error(f"Can't send \"stream started\" message: {e}")
+
+            def __getstate__(self):
+                return self.txtchn.id
+
+            def __setstate__(self, txtchn_id):
+                self.txtchn = bot.get_partial_messageable(txtchn_id)
+
+        self.send_enabled_msg = SendEnabledMsg
 
     def _registered_chns(self, chn_id: int, exclude_url=()) -> str:
         "Formatted string of list of registered channels."
@@ -88,6 +130,7 @@ class Admin(cm.Cog):
         """Make this channel available for clipping. Leave `channel` empty to view the currently registered."
         When `channel_url` goes live, the bot will automatically start capturing.
         """
+        ctx.channel
         if not channel:
             current = self._registered_chns(ctx.channel.id)
             if current:
@@ -116,14 +159,15 @@ class Admin(cm.Cog):
                             # This shouldn't happen
                             logger.critical(f"Watcher not active: {ws.target, ctx.channel}")
             else:
+                hook1 = _AddToPsd(self.captured_streams, (ctx.channel.id,))
+                hook2 = self.send_enabled_msg(ctx.channel)
                 try:
-                    register = create_watch_sharer(san_url)
+                    register = create_watch_sharer(san_url, (hook1, hook2))
                 except ValueError as e:
                     logger.exception(e)
                     continue
                 self.registers.add((ctx.channel.id,), register)
-                hook = _add_to_psd(self.captured_streams, (ctx.channel.id,))
-                register.start(stream_start_hook=hook)
+                register.start()
                 new_reg_urls.append(san_url)
 
         text = ""
@@ -212,17 +256,17 @@ class Admin(cm.Cog):
             if ws.active_stream and (ws.active_stream.stream_url == san_url or ws.target == san_url):
                 if ctx.interaction:
                     await ctx.interaction.delete_original_message()
-                await ctx.send(f"{san_url} is already enabled on this text channel. 🤨", ephemeral=True)
+                await ctx.send(f"{san_url} is already enabled on this text channel 🤨", ephemeral=True)
                 return
 
-        ws: WatcherSharer = create_watch_sharer(san_url)
+        hook = _AddToPsd(self.captured_streams, (ctx.channel.id,))
+        ws: WatcherSharer = create_watch_sharer(san_url, stream_hooks=(hook,))
         self.onetime_streams.add((ctx.channel.id,), ws)
         try:
-            hook = _add_to_psd(self.captured_streams, (ctx.channel.id,))
-            ws.start(stream_start_hook=hook)
-            waiting_for_msg = await ctx.send(f"Waiting for <{san_url}>")
+            ws.start()
+            waiting_for_msg = await ctx.send(f"👀 Waiting for <{san_url}>")
             await ws.stream_on.wait()
-            await waiting_for_msg.edit(content=f"Capturing <{san_url}>")
+            await waiting_for_msg.edit(content=f"🎦 Clipping enabled for <{san_url}>")
             await ws.stream_off.wait()
         finally:
             self.onetime_streams.remove((ctx.channel.id,), ws)

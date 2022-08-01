@@ -1,6 +1,6 @@
 import asyncio as aio
 import logging
-from typing import Callable, Type
+from typing import Awaitable, Callable, Iterable, Type
 
 from ..stream.base import Stream
 from . import Sharer, watchers
@@ -14,9 +14,15 @@ logger = logging.getLogger(__name__)
 
 
 class WatcherSharer:
-    def __init__(self, watcher_class: Type[Watcher], target: str):
+    def __init__(
+        self,
+        watcher_class: Type[Watcher],
+        target: str,
+        stream_hooks: Iterable[Callable[[Stream], Awaitable]],
+    ):
         "`target` is either a san url or a protocol string like `'collabs:<san_url>'`"
         self.target = target
+        self.stream_hooks = tuple(stream_hooks)
         if target not in watchers:
             watcher = watcher_class(target)
             sharer = Sharer(watcher)
@@ -25,15 +31,14 @@ class WatcherSharer:
         self.sharer.usage += 1
         self.active = False
 
-    def start(self, stream_start_hook: Callable[[Stream], None] | None):
+    def start(self):
         assert not self.active
         if self.sharer.start_count == 0:
             self.sharer.w.start()
         else:
             logger.info(f"Sharing watcher for {self.target}")
         self.sharer.start_count += 1
-        if stream_start_hook:
-            self.sharer.w.start_hooks[self] = stream_start_hook
+        self.sharer.w.start_hooks[self] = self.stream_hooks
         self.active = True
 
     def stop(self):
@@ -74,7 +79,7 @@ class WatcherSharer:
 
     # pickling
     def __reduce__(self):
-        return create_watch_sharer, self.target
+        return create_watch_sharer, (self.target, self.stream_hooks)
 
 
 watcher_classes = (
@@ -84,9 +89,12 @@ watcher_classes = (
 )
 
 
-def create_watch_sharer(san_url: str) -> WatcherSharer:
+def create_watch_sharer(
+    san_url: str,
+    stream_hooks: Iterable[Callable[[Stream], Awaitable]]
+    ) -> WatcherSharer:
     for W in watcher_classes:
         if W.url_is_valid(san_url):
-            return WatcherSharer(W, san_url)
+            return WatcherSharer(W, san_url, stream_hooks)
     logger.error("Valid Watcher not found.")
     raise ValueError("Valid Watcher not found.")

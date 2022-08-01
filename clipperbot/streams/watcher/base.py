@@ -1,7 +1,7 @@
 import asyncio as aio
 import logging
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Awaitable, Callable
 
 from ... import POLL_PERIOD
 from ..stream.base import Stream, StreamStatus, StreamWithActDL
@@ -24,7 +24,7 @@ class Watcher(ABC):
     def __init__(self, target: str):
         ...
 
-    start_hooks: dict["WatcherSharer", Callable[[Stream], None]]
+    start_hooks: dict["WatcherSharer", tuple[Callable[[Stream], Awaitable], ...]]
     targets_url: str
     name: str
     active_stream: Stream | None
@@ -65,8 +65,9 @@ class Poller(Watcher):
             s = await self._poll()
             if s:
                 logger.info(f"Stream started: {self.target}")
-                for h in self.start_hooks.values():
-                    h(s)
+                for hs in self.start_hooks.values():
+                    for h in hs:
+                        await h(s)
                 self.stream_off.clear()
                 self.stream_on.set()
                 assert isinstance(s, StreamWithActDL)
