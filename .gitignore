@@ -6,3 +6,8 @@ sample*
 *.db
 .env
 tests/**
+*.ts
+*.mp4
+*.m4a
+*.webm
+*.ogg
