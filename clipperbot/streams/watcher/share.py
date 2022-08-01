@@ -72,6 +72,10 @@ class WatcherSharer:
     def stream_off(self) -> aio.Event:
         return self.sharer.w.stream_off
 
+    # pickling
+    def __reduce__(self):
+        return create_watch_sharer, self.target
+
 
 watcher_classes = (
     TtvWatcher,

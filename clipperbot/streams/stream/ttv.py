@@ -78,6 +78,7 @@ class TTVStream(StreamWithActDL):
     @property
     def pastlive_dl_allowed(self):
         return self._pastlive_dl_allowed
+
     @pastlive_dl_allowed.setter
     def pastlive_dl_allowed(self, o: bool):
         self._pastlive_dl_allowed = o
@@ -109,11 +110,17 @@ class TTVStream(StreamWithActDL):
         output = os.path.join(self.download_dir, self.title + str(self._actdl_counter) +".ts")
         self._download = YTLiveDownload(self.stream_url, output)
         self.actdl_off.clear()
+        non_cancel_exception = False
         try:
             await self._download.download_task
-            self._past_actdl.append((time.time(), self._download))
             self._actdl_counter += 1
+        except BaseException as e:
+            if isinstance(e, Exception):
+                non_cancel_exception = True
+            raise
         finally:
+            if not non_cancel_exception:
+                self._past_actdl.append((time.time(), self._download))
             self._download = None
             all_streams[self.unique_id] = self
             self.actdl_off.set()
@@ -144,7 +151,6 @@ class TTVStream(StreamWithActDL):
             self._past_segments_vod.append((ss, t, out_fpath))
             all_streams[self.unique_id] = self
             return out_fpath
-        assert False
 
     @lock("_clip_lock")
     async def _clip_ss(self, ts: float, duration: float, audio_only: bool) -> str:
@@ -152,43 +158,62 @@ class TTVStream(StreamWithActDL):
         end_irl = ts_irl + duration
         out_fpath = os.path.join(self.download_dir, self.title + f"_{ts:.0f}_{duration:.0f}")
 
-        if self._download and self._download.start_time <= ts_irl:
-            ss = ts_irl - self._download.start_time
-            return await cutting.cut(
-                self._download.output_fpath,
-                ts_irl - self._download.start_time,
-                None,
-                duration,
-                out_fpath=out_fpath,
-                audio_only=audio_only,
-                quick_seek=True
-            )
-        else:
-            for d_end, d in self._past_actdl:
-                if d.start_time <= ts_irl and end_irl <= d_end:
-                    return await cutting.cut(
-                        d.output_fpath,
-                        ts_irl - d.start_time,
-                        None,
-                        duration,
-                        out_fpath=out_fpath,
-                        audio_only=audio_only,
-                        quick_seek=True
-                    )
-        # No live download can fully cover the clip.
-        clip_intrv = (round(ts), round(ts+duration))
+        for try_no in range(2):
+            if self._download and self._download.start_time <= ts_irl:
+                return await cutting.cut(
+                    self._download.output_fpath,
+                    ts_irl - self._download.start_time,
+                    None,
+                    duration,
+                    out_fpath=out_fpath,
+                    audio_only=audio_only,
+                    quick_seek=True
+                )
+            else:
+                for d_end, d in self._past_actdl:
+                    if d.start_time <= ts_irl and end_irl <= d_end:
+                        try:
+                            return await cutting.cut(
+                                d.output_fpath,
+                                ts_irl - d.start_time,
+                                None,
+                                duration,
+                                out_fpath=out_fpath,
+                                audio_only=audio_only,
+                                quick_seek=True
+                            )
+                        except FileNotFoundError:
+                            self._past_actdl.remove((d_end, d))
+                            if try_no < 2:
+                                logger.error(f"File {d.output_fpath} not found, trying clip again.")
+                                continue
+                            else:
+                                raise
 
-        vod_ints: list[tuple[str, INTRVL]] = [(d[2], (d[0], d[0]+d[1])) for d in self._past_segments_vod]
-        vod_covered, vod_uncovered = find_intersections(clip_intrv, vod_ints)
+            # No live download can fully cover the clip.
+            clip_intrv = (round(ts), round(ts+duration))
 
-        if self.online:
-            raise ValueError
-        else:
-            add_s = [
-                (await self._download_past(s[0]-30, s[1]-s[0]+30), (30, -30)) for s in vod_uncovered
-            ]
-            return await cutting.concat(*(add_s + vod_covered), out_fpath=out_fpath)  # type: ignore
+            vod_ints: list[tuple[str, INTRVL]] = [(d[2], (d[0], d[0]+d[1])) for d in self._past_segments_vod]
+            vod_covered, vod_uncovered = find_intersections(clip_intrv, vod_ints)
 
+            try:
+                if self.online:
+                    raise ValueError
+                else:
+                    add_s = [
+                        (await self._download_past(s[0]-30, s[1]-s[0]+30), (30, -30)) for s in vod_uncovered
+                    ]
+                    return await cutting.concat(*(add_s + vod_covered), out_fpath=out_fpath)  # type: ignore
+            except Exception:
+                for fpath, i in vod_ints:
+                    if not os.path.isfile(fpath):
+                        if try_no < 2:
+                            logger.error(f"File {fpath} not found, trying clip again.")
+                            vod_ints.remove((fpath, i))
+                            continue
+                        else:
+                            raise
+        assert False
 
     async def is_alias(self, name: str) -> bool:
         channel_id = self.info_dict["channel_url"].split("/")[-1]

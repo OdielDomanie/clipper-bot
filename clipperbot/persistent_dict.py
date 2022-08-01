@@ -4,7 +4,7 @@ import sqlite3
 import time
 from ast import literal_eval
 from collections.abc import MutableMapping
-from typing import Callable, Collection, Hashable, TypeVar
+from typing import Any, Callable, Collection, Hashable, TypeVar
 
 
 logger = logging.getLogger("taggerbot.utils")
@@ -321,3 +321,122 @@ class PersistentSetDict(MutableMapping[KTT, frozenset[VT]]):
         if not self._cache_valid:
             self._populate_from_sql()
         return tuple(keys) in self._store
+
+
+class OldPersistentDict(MutableMapping):
+    """Older version for compatibility.
+    Dictionary that loads from database upon initilization,
+    and writes to it with every set operation.
+    The cache goes stale in cache_duration seconds, if not None.
+    """
+    def __init__(
+        self,
+        database: str,
+        table_name: str,
+        str_to_key,
+        str_to_val: Callable[[str], Any],
+        cache_duration: float | None = None,
+    ):
+        self.database = database
+        self.table_name = table_name
+        self.str_to_key = str_to_key
+        self.str_to_val = str_to_val
+        self.cache_duration = cache_duration
+
+        self._store = {}
+        self._cache_valid = False
+        self._last_cache = float("-inf")
+
+        assert table_name not in assigned_table_names
+        self._create_table()
+
+        assigned_table_names.add(table_name)
+
+    def drop(self):
+        "Drop the sql table. This object mustn't be used after that."
+        con = sqlite3.connect(self.database)
+        cur = con.cursor()
+        cur.execute(
+            f"DROP TABLE IF EXISTS '{self.table_name}'"
+        )
+        con.commit()
+        con.close()
+
+    def _create_table(self):
+        con = sqlite3.connect(self.database)
+        cur = con.cursor()
+        cur.execute(
+            f"CREATE TABLE IF NOT EXISTS '{self.table_name}' (key_ PRIMARY KEY, value_)"
+        )
+        con.commit()
+        con.close()
+
+    def _populate_from_sql(self):
+        con = sqlite3.connect(self.database)
+        cur = con.cursor()
+        cur.execute(
+            f"SELECT key_, value_ FROM '{self.table_name}'"
+        )
+        tuple_results = cur.fetchall()
+        store = {}
+        for key, value in tuple_results:
+            store[self.str_to_key(key)] = self.str_to_val(value)
+        self._store = store
+        self._cache_valid = True
+        self._last_cache = time.monotonic()
+
+    def _calc_cache_staleness(self):
+        if (
+            self.cache_duration is not None
+            and time.monotonic() - self._last_cache > self.cache_duration
+        ):
+            self._cache_valid = False
+
+    def __getitem__(self, key):
+        self._calc_cache_staleness()
+        if not self._cache_valid:
+            self._populate_from_sql()
+        return self._store[key]
+
+    def __setitem__(self, key, value):
+        # test validity
+        if not (
+            key == self.str_to_key(str(key))
+            and value == self.str_to_val(str(value))
+        ):
+            raise ValueError
+
+        con = sqlite3.connect(self.database)
+        cur = con.cursor()
+        cur.execute(
+            f"INSERT OR REPLACE INTO '{self.table_name}' VALUES (?, ?)",
+            (str(key), str(value))
+        )
+        con.commit()
+        con.close()
+        self._store[key] = value
+
+    def __delitem__(self, key):
+        con = sqlite3.connect(self.database)
+        cur = con.cursor()
+        cur.execute(
+            f"DELETE FROM '{self.table_name}' WHERE key_ = ?", (str(key),)
+        )
+        con.commit()
+        con.close()
+        try:
+            del self._store[key]
+        except KeyError:
+            pass
+
+    def __iter__(self):
+        self._calc_cache_staleness()
+        if not self._cache_valid:
+            self._populate_from_sql()
+        return iter(self._store)
+
+    def __len__(self):
+        self._calc_cache_staleness()
+        if not self._cache_valid:
+            self._populate_from_sql()
+        return len(self._store)

@@ -20,3 +20,30 @@ c 20 5   | clip from 20 seconds ago with a duration of 5 s
 c 3:40   | clip the last 3 minutes and 40 seconds
 a        | clip audio only
 If the clip file is too big for discord, a direct download link is posted instead, if enabled for the server. The ddl is only temporary, so please don't hot-link to it."""
+
+audio_help = "Like the normal clip command, but audio only."
+
+bot_description = \
+"""Clipping bot!"""
+
+channel_permission_description = \
+"""Allow a category/command/subcommand to be used in a text channel.
+If a command is not assigned a text channel (default), it is allowed everywhere.
+Run this command without an argument to view the current permissions.
+Example: to disallow video clips but allow audio clips in a text channel, run the following commands:
+#stream-clips: channel_permission add Clipping
+(The commands under the Clipping category can only be used in #stream-clips)
+#stream-noises: channel_permission add a
+(The `a` command can be used in #stream-noises)"""
+
+
+role_permission_description = \
+"""Allow a role to use category/command/subcommand.
+If the Clipping commands are not assigned a role (default), it is allowed by everyone.
+Run this command without an argument to view the current permissions.
+Example: To allow the "Mods" role to use Admin commands:
+> role_permission add Admin Mods
+Example: To allow only the "Tagger" role to use the clip command, but let the "Peeps" role to use the `a` command:
+> role_permission add c Tagger
+(The `a` command also falls under the category of `c`, so it must be re-allowed)
+> role_permission add a Peeps"""

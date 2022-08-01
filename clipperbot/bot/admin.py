@@ -5,7 +5,7 @@ import discord as dc
 import discord.app_commands as ac
 import discord.ext.commands as cm
 
-from ..persistent_dict import PersistentSetDict
+from ..persistent_dict import OldPersistentDict, PersistentDict, PersistentSetDict
 from ..streams.stream import all_streams
 from ..streams.stream.get_stream import get_stream
 from ..streams.url_finder import get_channel_url, get_stream_url
@@ -13,6 +13,7 @@ from ..streams.watcher.share import WatcherSharer, create_watch_sharer
 from ..utils import thinking
 from ..vtuber_names import get_all_chns_from_name
 from .exceptions import StreamNotLegal
+from . import help_strings
 
 if TYPE_CHECKING:
     from ..streams.stream.base import Stream
@@ -34,6 +35,7 @@ class _add_to_psd:
 class Admin(cm.Cog):
     def __init__(self, bot: ClipperBot):
 
+        self.bot = bot
         self.settings = PersistentSetDict[tuple[str, int], Any](
             database=bot.database, table_name="settings", depth=2
         )
@@ -47,6 +49,9 @@ class Admin(cm.Cog):
         self.captured_streams = PersistentSetDict[tuple[int], tuple[float, object]](
             database=bot.database, table_name="captured_streams", depth=1, pickling=True,
         )
+        # {guild_id: perm}
+        self.possible_link_perms = {"false", "true"}
+        self.link_perms = OldPersistentDict(bot.database, "link_perms", int, str)
 
     def _registered_chns(self, chn_id: int, exclude_url=()) -> str:
         "Formatted string of list of registered channels."
@@ -87,13 +92,6 @@ class Admin(cm.Cog):
                 await ctx.send("No channel registered on this text channel yet.")
             return
 
-        # try:
-        #     san_urls: Collection[str] = await get_channel_url(channel)
-        # except ValueError:
-        #     if ctx.interaction:
-        #         await ctx.interaction.delete_original_message()
-        #     await ctx.send(f"{channel} is not a valid channel name or url 🤨", ephemeral=True)
-        #     return
         san_urls: Collection[str] = await get_channel_url(channel)
 
         if not san_urls:
@@ -257,3 +255,125 @@ class Admin(cm.Cog):
             return s
         else:
             raise StreamNotLegal()
+
+    ### Settings
+
+    def set_link_perm(self, guild_id: int, perm: str):
+        """Set permission to post links (for big clips). "yes"/"no",
+        or custom that is included in possible_link_perms attr."""
+        assert perm in self.possible_link_perms, "perm not meaningful"
+        self.link_perms[guild_id] = perm
+
+    def get_link_perm(self, guild_id: int) -> bool:
+        perm_str = self.link_perms.get(guild_id, "false")
+        return perm_str == "true"
+
+    @cm.hybrid_command()
+    async def allow_links(self, ctx: cm.Context, allow: bool):
+        "Whether the bot can post big clips as links, instead of the \"cannot post as attachment\" message."
+        assert ctx.guild
+        self.link_perms[ctx.guild.id] = "true" if allow else "false"
+        if allow:
+            await ctx.send(
+                f"The bot will post clips bigger than {ctx.guild.filesize_limit/10**6:.0f} MB (the server file size limit) as links."
+            )
+        else:
+            await ctx.send(
+                f"The bot will not post clips bigger than {ctx.guild.filesize_limit/10**6:.0f} MB (the server file size limit) as links, and give an error message instead."
+            )
+
+    prefix_brief = "Change the channel prefix."
+    @cm.command()
+    async def prefix(self, ctx, prefix: str):
+        "Change the channel prefix. The default prefix is always available."
+        self.bot.prefixes[ctx.guild.id] = prefix
+
+    ### Old style permissions
+
+    @cm.group(
+        brief="Allow/disallow commands on specified text-channels.",
+        help=help_strings.channel_permission_description,
+        invoke_without_command=True
+    )
+    async def channel_permission(self, ctx: cm.Context):
+        assert ctx.guild
+        allowed_commands = set()
+        for guild_com_tuple, chn_id in self.bot.command_txtchn_perms.items():
+            if ctx.guild.id == guild_com_tuple[0] and ctx.channel.id in chn_id:
+                allowed_commands.add(guild_com_tuple[1])
+
+        if len(allowed_commands) == 0:
+            await ctx.send("All commands are enabled on this text channel.")
+        else:
+            allowed_commands_str = ", ".join(allowed_commands)
+            await ctx.send(f"Enabled commands in this channel: {allowed_commands_str}")
+
+    @channel_permission.command(
+        name="add",
+        brief="Enable a command on this text channel.",
+        help="Enable a command on this text channel."
+    )
+    async def channel_permission_add(self, ctx, command: str):
+        self.bot.command_txtchn_perms.add(
+            (ctx.guild.id, command), value=ctx.channel.id
+        )
+        await self.channel_permission(ctx)
+
+    @channel_permission.command(name="remove")
+    async def channel_permission_remove(self, ctx, command: str):
+        self.bot.command_txtchn_perms.remove(
+            (ctx.guild.id, command), value=ctx.channel.id
+        )
+        await self.channel_permission(ctx)
+
+    @cm.group(
+        brief="Give roles permission to use specified commands.",
+        help=help_strings.role_permission_description,
+        invoke_without_command=True
+    )
+    async def role_permission(self, ctx: cm.Context):
+        allowed_roles = set()
+        assert ctx.guild
+        for guild_com_tuple, role_names in self.bot.command_role_perms.items():
+            if ctx.guild.id == guild_com_tuple[0]:
+                if len(role_names) != 0:
+                    tuple_str = f"({guild_com_tuple[1]}: {', '.join(role_names)})"
+                    allowed_roles.add(tuple_str)
+
+        allowed_roles_str = ", ".join(allowed_roles)
+        await ctx.send(f"Role permissions: `{allowed_roles_str}`")
+
+    @role_permission.command(
+        name="add",
+        brief="Enable a command for a role.",
+        help="Enable a command for a role.",
+        usage="<command> <role>"
+    )
+    async def role_permission_add(self, ctx, command: str, *role: str):
+        if len(role) == 0:
+            await ctx.send(
+                "Need to specify role: `role_permission add <command> <role>`"
+            )
+            return
+        role_name = " ".join(role)
+        self.bot.command_role_perms.add(
+            (ctx.guild.id, command),
+            value=role_name
+        )
+        await self.role_permission(ctx)
+
+    @role_permission.command(
+        name="remove",
+        usage="<command> <role>"
+    )
+    async def role_permission_remove(self, ctx, command: str, *role: str):
+        if len(role) == 0:
+            await ctx.send(
+                "Need to specify role: `role_permission remove <command> <role>`"
+            )
+        role_name = " ".join(role)
+        self.bot.command_role_perms.remove(
+            (ctx.guild.id, command),
+            value=role_name
+        )
+        await self.role_permission(ctx)

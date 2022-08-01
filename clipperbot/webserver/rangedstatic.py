@@ -16,7 +16,7 @@ https://stackoverflow.com/questions/33208849/python-django-streaming-video-mp4-f
 def ranged(
             file,
             start: int = 0,
-            end: int = None,
+            end: int | None = None,
             block_size: int = 8192 * 512,
         ):
 
@@ -46,23 +46,23 @@ def ranged(
 
 
 def Ranged_Static_Directory(directory):
-    async def rs_directory_app(scope, receive, send) -> StreamingResponse:
+    async def rs_directory_app(scope, receive, send) -> None:
         assert scope['type'] == 'http'
-        path: str = scope["path"]
+        sc_path: str = scope["path"]
 
-        if path.endswith(".mp4"):
+        if sc_path.endswith(".mp4"):
             media_type = 'video/mp4'
-        elif path.endswith(".webm"):
+        elif sc_path.endswith(".webm"):
             media_type = 'video/mp4'
-        elif path.endswith(".m4a"):
+        elif sc_path.endswith(".m4a"):
             media_type = 'audio/mp4'
-        elif path.endswith(".ogg"):
+        elif sc_path.endswith(".ogg"):
             media_type = 'audio/ogg'
         else:
             await Response(status_code=404)(scope, receive, send)
             return
 
-        fname = urllib.parse.unquote(path[1:])
+        fname = urllib.parse.unquote(sc_path[1:])
         file_path = os.path.join(directory, fname)
 
         path = Path(file_path)
@@ -88,29 +88,28 @@ def Ranged_Static_Directory(directory):
         content_length = file_size
         headers = {}
 
-        if content_range is not None:
-            content_range = content_range.strip().lower()
+        content_range = content_range.strip().lower()
 
-            content_ranges = content_range.split('=')[-1]
+        content_ranges = content_range.split('=')[-1]
 
-            range_start, range_end, *_ = map(
-                str.strip, (content_ranges + '-').split('-')
-            )
+        range_start, range_end, *_ = map(
+            str.strip, (content_ranges + '-').split('-')
+        )
 
-            range_start = max(0, int(range_start)) if range_start else 0
-            range_end = min(file_size - 1, int(range_end)) if range_end else file_size-1
+        range_start = max(0, int(range_start)) if range_start else 0
+        range_end = min(file_size - 1, int(range_end)) if range_end else file_size-1
 
-            content_length = (range_end - range_start) + 1
+        content_length = (range_end - range_start) + 1
 
-            try:
-                file = ranged(file, start=range_start, end=range_end + 1)
-            except (OSError, ValueError):
-                await Response(status_code=404)(scope, receive, send)
-                return
+        try:
+            file = ranged(file, start=range_start, end=range_end + 1)
+        except (OSError, ValueError):
+            await Response(status_code=404)(scope, receive, send)
+            return
 
-            status_code = 206 if requests_range else 200
+        status_code = 206 if requests_range else 200
 
-            headers['Content-Range'] = f'bytes {range_start}-{range_end}/{file_size}'
+        headers['Content-Range'] = f'bytes {range_start}-{range_end}/{file_size}'
 
         response = StreamingResponse(
             file,

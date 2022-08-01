@@ -74,7 +74,13 @@ async def cut(
         command.insert(time_args_i + 2, "-t")
         command.insert(time_args_i + 3, str(t))
 
-    return await _clip_process(command, out_fpath)
+    try:
+        return await _clip_process(command, out_fpath)
+    except Exception as e:
+        if not os.path.isfile(source):
+            raise FileNotFoundError()
+        else:
+            raise
 
 
 async def _clip_process(command: Iterable[str], out_fpath: str) -> str:

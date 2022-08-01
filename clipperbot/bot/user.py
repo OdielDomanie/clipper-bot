@@ -29,19 +29,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-# Make module into discord.py extension
-async def setup(bot: ClipperBot):
-    logger.info(f"Loading extension {__name__}")
-    this_module = sys.modules[__name__]
-    rreload(this_module)
-    await bot.add_cog(Clipping(bot))
-
-
-async def teardown(bot: ClipperBot):
-    logger.info(f"Unloading extension {__name__}")
-    # await bot.remove_cog("Clipping")
-
-
 @dataclass(eq=True, frozen=True)
 class _SentClip:
     fpath: str | None
@@ -224,7 +211,9 @@ class Clipping(cm.Cog):
                     )
                     return
 
-        await self.create_n_send_clip(ctx, clipped_stream, ts, None, duration_t)
+        await self.create_n_send_clip(
+            ctx, clipped_stream, ts, None, duration_t, audio_only=False
+        )
 
     @cm.hybrid_command(
         name="c",
@@ -239,13 +228,39 @@ class Clipping(cm.Cog):
         duration: str | None = None,
     ):
         "!c"
+        await self.do_clip(ctx, ago, duration, audio_only=False)
+
+    @cm.hybrid_command(
+        name="a",
+        aliases=("audio",),
+        brief="Clip audio only",
+        help=help_strings.audio_help,
+    )
+    async def audio_only(
+        self,
+        ctx: cm.Context[ClipperBot],
+        ago: str = str(DEF_AGO),
+        duration: str | None = None,
+    ):
+        "!a"
+        await self.do_clip(ctx, ago, duration, audio_only=True)
+
+    async def do_clip(
+        self,
+        ctx: cm.Context[ClipperBot],
+        ago: str = str(DEF_AGO),
+        duration: str | None = None,
+        *,
+        audio_only: bool,
+    ):
+        "`c` and `a` commands call this."
         assert ctx.guild
 
         try:
             ago_t = _to_deltatime(ago)
         except cm.BadArgument:
             await ctx.send(
-                f"{ago} is wrong, you should give from how many seconds ago you want to start the clip."
+                f"{ago} is bad, you should give from how many seconds ago you want to start the clip."
                 f"\nExample: `10`, `130` or `2:10`.",
                 ephemeral=True,
             )
@@ -256,7 +271,7 @@ class Clipping(cm.Cog):
                 duration_t = _to_deltatime(duration)
             except cm.BadArgument:
                 await ctx.send(
-                    f"{duration} is wrong. Example: `10`, `130` or `2:10`.",
+                    f"{duration} is bad. Example: `10`, `130` or `2:10`.",
                     ephemeral=True,
                 )
                 return
@@ -273,7 +288,8 @@ class Clipping(cm.Cog):
 
         try:
             p, clipped_stream = max(
-                streams, key=lambda ps: (ps[1].active, ps[0], ps[1].end_time or ps[1].start_time)
+                streams,
+                key=lambda ps: (ps[1].active, ps[0], ps[1].end_time or ps[1].start_time)
             )
         except ValueError:
             await ctx.send(
@@ -282,7 +298,9 @@ class Clipping(cm.Cog):
             )
             return
 
-        await self.create_n_send_clip(ctx, clipped_stream, None, ago_t, duration_t)
+        await self.create_n_send_clip(
+            ctx, clipped_stream, None, ago_t, duration_t, audio_only
+        )
 
     @thinking
     async def create_n_send_clip(
@@ -292,6 +310,7 @@ class Clipping(cm.Cog):
         ts: float | None,
         ago_t: float | None,
         duration_t: float,
+        audio_only: bool,
     ):
         assert ctx.guild
         if ts is not None:
@@ -301,7 +320,7 @@ class Clipping(cm.Cog):
         else:
             raise TypeError("Both ts and ago_t can't be None.")
         try:
-            clip: Clip = await clip_f(duration_t)
+            clip: Clip = await clip_f(duration_t, audio_only=audio_only)
             # If clip size is barely above the file size limit, cut a little and try again.
             if 0 < clip.size - ctx.guild.filesize_limit <= 800_000:
                 new_clip = await clip_f(duration_t - 1)
@@ -357,7 +376,7 @@ class Clipping(cm.Cog):
                 return
 
         # Send as link
-        if self._settings["link_perm", ctx.guild.id]:
+        if self.admin_cog.get_link_perm(ctx.guild.id):
             logger.info(
                 f"Linking big {clip.fpath} ({clip.size//(1024*1024)}MB)"
                 f" at {(ctx.guild.name, ctx.channel)}")
