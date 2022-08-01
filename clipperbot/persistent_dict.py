@@ -92,8 +92,8 @@ class PersistentDict(MutableMapping[KT, VT]):
 
     def __setitem__(self, key: KT, value: VT):
         # test validity
-        if not (key == literal_eval(repr(key)) and value == self.load_v(self.dump_v(value))):  # type: ignore
-            raise ValueError
+        # if not (key == literal_eval(repr(key)) and value == self.load_v(self.dump_v(value))):  # type: ignore
+        #     raise ValueError
 
         con = sqlite3.connect(self.database)
         cur = con.cursor()
@@ -211,10 +211,10 @@ class PersistentSetDict(MutableMapping[KTT, frozenset[VT]]):
 
     def add(self, keys: KTT, value: VT):
         # test validity
-        if any(key != literal_eval(repr(key)) for key in keys) or value != self.load_v(
-            self.dump_v(value)  # type: ignore
-        ):
-            raise ValueError
+        # if any(key != literal_eval(repr(key)) for key in keys) or value != self.load_v(
+        #     self.dump_v(value)  # type: ignore
+        # ):
+        #     raise ValueError
 
         if len(keys) != self.depth:
             raise TypeError
@@ -236,10 +236,10 @@ class PersistentSetDict(MutableMapping[KTT, frozenset[VT]]):
     def __setitem__(self, keys: KTT, value_set: Collection[VT]):
 
         # test validity
-        if any(key != literal_eval(repr(key)) for key in keys) or any(
-            value != self.load_v(self.dump_v(value)) for value in value_set  # type: ignore
-        ):
-            raise ValueError
+        # if any(key != literal_eval(repr(key)) for key in keys) or any(
+        #     value != self.load_v(self.dump_v(value)) for value in value_set  # type: ignore
+        # ):
+        #     raise ValueError
 
         if len(keys) != self.depth:
             raise TypeError
@@ -400,11 +400,11 @@ class OldPersistentDict(MutableMapping):
 
     def __setitem__(self, key, value):
         # test validity
-        if not (
-            key == self.str_to_key(str(key))
-            and value == self.str_to_val(str(value))
-        ):
-            raise ValueError
+        # if not (
+        #     key == self.str_to_key(str(key))
+        #     and value == self.str_to_val(str(value))
+        # ):
+        #     raise ValueError
 
         con = sqlite3.connect(self.database)
         cur = con.cursor()
