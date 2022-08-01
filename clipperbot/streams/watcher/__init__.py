@@ -5,7 +5,7 @@ if typing.TYPE_CHECKING:
 
 
 class Sharer:
-    def __init__(self, w: Watcher):
+    def __init__(self, w: "Watcher"):
         self.w = w
         self.usage = 0
         self.start_count = 0

@@ -35,7 +35,7 @@ class _add_to_psd:
 
 
 class Admin(cm.Cog):
-    def __init__(self, bot: ClipperBot):
+    def __init__(self, bot: "ClipperBot"):
 
         self.bot = bot
         self.settings = PersistentSetDict[tuple[str, int], Any](
@@ -240,7 +240,7 @@ class Admin(cm.Cog):
 
         return res
 
-    async def get_stream_if_legal(self, chn_id: int, stream_name: str) -> "Stream" | None:
+    async def get_stream_if_legal(self, chn_id: int, stream_name: str) -> "Stream | None":
         """Return the stream if found.
         Can raise StreamNotLegal.
         """

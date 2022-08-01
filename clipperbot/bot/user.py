@@ -40,7 +40,7 @@ class _SentClip:
     user_id: int
 
 
-def delete_clip_file(clip: "Clip" | _SentClip):
+def delete_clip_file(clip: "Clip | _SentClip"):
     if not clip.fpath:
         return
     try:
@@ -70,7 +70,7 @@ def _to_deltatime(s: str) -> float:
 
 class Clipping(cm.Cog):
 
-    def __init__(self, bot: ClipperBot):
+    def __init__(self, bot: "ClipperBot"):
         self.bot = bot
         self.sent_clips = PersistentDict[int, _SentClip](
             bot.database,
@@ -222,7 +222,7 @@ class Clipping(cm.Cog):
     )
     async def clip(
         self,
-        ctx: cm.Context[ClipperBot],
+        ctx: cm.Context["ClipperBot"],
         ago: str = str(DEF_AGO),
         duration: str | None = None,
     ):
@@ -237,7 +237,7 @@ class Clipping(cm.Cog):
     )
     async def audio_only(
         self,
-        ctx: cm.Context[ClipperBot],
+        ctx: cm.Context["ClipperBot"],
         ago: str = str(DEF_AGO),
         duration: str | None = None,
     ):
@@ -246,7 +246,7 @@ class Clipping(cm.Cog):
 
     async def do_clip(
         self,
-        ctx: cm.Context[ClipperBot],
+        ctx: cm.Context["ClipperBot"],
         ago: str = str(DEF_AGO),
         duration: str | None = None,
         *,
@@ -304,7 +304,7 @@ class Clipping(cm.Cog):
     @thinking
     async def create_n_send_clip(
         self,
-        ctx:cm.Context[ClipperBot],
+        ctx:cm.Context["ClipperBot"],
         clipped_stream: "Stream",
         ts: float | None,
         ago_t: float | None,
@@ -336,7 +336,7 @@ class Clipping(cm.Cog):
                 await ctx.interaction.delete_original_message()
                 await ctx.send("The time range is no longer in my cache 😕", ephemeral=True)
 
-    async def send_clip(self, ctx: cm.Context[ClipperBot], clip: "Clip"):
+    async def send_clip(self, ctx: cm.Context["ClipperBot"], clip: "Clip"):
         assert ctx.guild
 
         if clip.size <= ctx.guild.filesize_limit:
