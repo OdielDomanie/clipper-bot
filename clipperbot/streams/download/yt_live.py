@@ -4,7 +4,7 @@ import os
 import shlex
 import sys
 import time
-from asyncio.subprocess import DEVNULL, PIPE, create_subprocess_exec
+from asyncio.subprocess import PIPE, create_subprocess_exec
 
 import psutil
 
@@ -81,7 +81,7 @@ class YTLiveDownload:
     async def _download_proc(self):
         "Start the ytdl process and return it."
         args = [
-            sys.executable, "-m", "yt-dlp",
+            sys.executable, "-m", "yt_dlp",
             "--hls-use-mpegts",
             "--match-filter", "is_live",
             "--cookies", ".cookies.txt",
@@ -91,7 +91,7 @@ class YTLiveDownload:
             self.url
         ]
         proc = await create_subprocess_exec(
-            *args, stdin=PIPE, stdout=DEVNULL, stderr=PIPE
+            *args, stdin=PIPE, stdout=PIPE, stderr=PIPE
         )
         logger.info(f"Starting ytdl process: {shlex.join(args)}")
         self._read_error_task = aio.create_task(_read_yt_error(proc.stderr))  # type: ignore
@@ -159,7 +159,7 @@ class YTLiveDownload:
     async def _start_n_wait(self):
         "Start the download, return when done. Can be cancelled."
         try:
-            proc = await aio.wait_for(self._download_proc(), timeout=10)
+            proc = await aio.wait_for(self._download_proc(), timeout=20)
 
             proc_wait_task = aio.create_task(proc.wait())
             watch_file_task = aio.create_task(self._watch_file())
