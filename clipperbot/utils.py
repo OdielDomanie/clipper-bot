@@ -153,8 +153,8 @@ def thinking(cmd: CMDF_T) -> CMDF_T:
             await intr.response.defer(thinking=True)
             already_responded = False
         try:
-            return await cmd(ctx_it, *args, **kwargs)
-        except:
+            return await cmd(self, ctx_it, *args, **kwargs)
+        except Exception as e:
             if not already_responded:
                 await intr.followup.send("Something went wrong, I couldn't do it 😖")
             raise
