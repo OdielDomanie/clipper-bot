@@ -88,9 +88,7 @@ class Admin(cm.Cog):
         self.registers = PersistentSetDict[tuple[int], WatcherSharer](
             database=bot.database, table_name="registers", depth=1, pickling=True,
         )
-        self.onetime_streams = PersistentSetDict[tuple[int], WatcherSharer](
-            database=bot.database, table_name="onetime_streams", depth=1, pickling=True,
-        )
+        self.onetime_streams = dict[int, set[WatcherSharer]]()
         # {chn_id: (priority, uid)}
         self.captured_streams = PersistentSetDict[tuple[int], tuple[float, object]](
             database=bot.database, table_name="captured_streams", depth=1, pickling=True,
@@ -106,7 +104,7 @@ class Admin(cm.Cog):
     def _registered_chns(self, chn_id: int, exclude_url=()) -> str:
         "Formatted string of list of registered channels."
         res = []
-        for w in self.registers.get((chn_id,), set()).union(self.onetime_streams.get((chn_id,), set())):
+        for w in self.registers.get((chn_id,), set()).union(self.onetime_streams.get(chn_id, set())):
             if w.target not in exclude_url:
                 txt = '<' + w.targets_url + '>'
                 if w.name:
@@ -202,7 +200,7 @@ class Admin(cm.Cog):
         registers = self.registers[ctx.channel.id,]
         fitting_registers = [w for w in registers if w.is_alias(channel)]
         if len(fitting_registers) == 0:
-            onetime = self.onetime_streams[ctx.channel.id,]
+            onetime = self.onetime_streams[ctx.channel.id]
             fitting_onetime = [w for w in onetime if w.is_alias(channel)]
             if len(fitting_onetime) == 0:
                 if ctx.interaction:
@@ -211,7 +209,7 @@ class Admin(cm.Cog):
                 return
             else:
                 for w in fitting_onetime:
-                    self.onetime_streams.remove((ctx.channel.id,), w)
+                    self.onetime_streams[ctx.channel.id].remove(w)
                     w.stop()
         else:
             for w in fitting_registers:
@@ -266,7 +264,7 @@ class Admin(cm.Cog):
 
         hook = _AddToPsd(self.captured_streams, (ctx.channel.id,))
         ws: WatcherSharer = create_watch_sharer(san_url, stream_hooks=(hook,))
-        self.onetime_streams.add((ctx.channel.id,), ws)
+        self.onetime_streams.setdefault(ctx.channel.id, set()).add(ws)
         try:
             ws.start()
             waiting_for_msg = await ctx.send(f"👀 Waiting for <{san_url}>")
@@ -274,7 +272,7 @@ class Admin(cm.Cog):
             await waiting_for_msg.edit(content=f"🎦 Clipping enabled for <{san_url}>")
             await ws.stream_off.wait()
         finally:
-            self.onetime_streams.remove((ctx.channel.id,), ws)
+            self.onetime_streams[ctx.channel.id].remove(ws)
             ws.stop()
 
     def get_streams(self, chn_id: int) -> Collection[tuple[float, "Stream"]]:
