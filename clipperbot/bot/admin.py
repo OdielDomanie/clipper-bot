@@ -106,7 +106,7 @@ class Admin(cm.Cog):
     def _registered_chns(self, chn_id: int, exclude_url=()) -> str:
         "Formatted string of list of registered channels."
         res = []
-        for w in self.registers[chn_id,].union(self.onetime_streams[chn_id,]):
+        for w in self.registers.get((chn_id,), set()).union(self.onetime_streams.get((chn_id,), set())):
             if w.target not in exclude_url:
                 txt = '<' + w.targets_url + '>'
                 if w.name:
@@ -154,7 +154,7 @@ class Admin(cm.Cog):
         already_reg_urls = list[str]()
         new_reg_urls = list[str]()
         for san_url in san_urls:
-            if san_url in (ws.target for ws in self.registers[(ctx.channel.id,)]):
+            if san_url in (ws.target for ws in self.registers.get((ctx.channel.id,), ())):
                 already_reg_urls.append(san_url)
                 # What if it was not started?
                 for ws in self.registers[(ctx.channel.id,)]:
