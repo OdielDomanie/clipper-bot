@@ -192,3 +192,15 @@ class YTLiveDownload:
                     self.download_error = e
                 except aio.TimeoutError:
                     logger.critical(f"read_error_task for {self.url} timed out.")
+
+    #pickling
+    def __getstate__(self) -> dict:
+        state = self.__dict__.copy()
+        del state["download_task"]
+        del state["_read_error_task"]
+        return state
+
+    def __setstate__(self, state: dict):
+        self.__dict__ = state
+        self.download_task = None
+        self._read_error_task = None

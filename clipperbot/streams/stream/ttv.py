@@ -103,7 +103,7 @@ class TTVStream(StreamWithActDL):
             self._start_time = int(time.time())
 
     def stop_download(self):
-        assert self._download
+        assert self._download and self._download.download_task
         self._download.download_task.cancel()
 
     async def _download_till_end(self):
@@ -112,6 +112,7 @@ class TTVStream(StreamWithActDL):
         self.actdl_off.clear()
         non_cancel_exception = False
         try:
+            assert self._download.download_task
             await self._download.download_task
             self._actdl_counter += 1
         except BaseException as e:

@@ -105,7 +105,7 @@ class YTStream(StreamWithActDL):
             self._start_time = int(time.time())
 
     def stop_download(self):
-        assert self._download
+        assert self._download and self._download.download_task
         self._download.download_task.cancel()
 
     async def _download_till_end(self):
@@ -114,6 +114,7 @@ class YTStream(StreamWithActDL):
         self.actdl_off.clear()
         non_cancel_exception = False
         try:
+            assert self._download.download_task
             await self._download.download_task
             self._past_actdl.append((time.time(), self._download))
             self._actdl_counter += 1
@@ -320,6 +321,7 @@ class YTStream(StreamWithActDL):
             "_pastdl_lock",
             "_clip_lock",
             "_online",
+            "actdl_off",
         )
         for key in stateful:
             del state[key]
@@ -332,3 +334,5 @@ class YTStream(StreamWithActDL):
         self._pastdl_lock = aio.Lock()
         self._clip_lock = aio.Lock()
         self._online = None
+        self.actdl_off = aio.Event()
+        self.actdl_off.set()
