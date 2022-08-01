@@ -101,6 +101,11 @@ class Admin(cm.Cog):
 
         _SendEnabledMsg.bot = bot
 
+        # WatcherSharers should always be active. We deal with the unpickled one here.
+        for ws in self.registers.values():
+            for w in ws:
+                w.start()
+
     def _registered_chns(self, chn_id: int, exclude_url=()) -> str:
         "Formatted string of list of registered channels."
         res = []
