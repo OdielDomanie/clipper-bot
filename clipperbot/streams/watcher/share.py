@@ -96,5 +96,5 @@ def create_watch_sharer(
     for W in watcher_classes:
         if W.url_is_valid(san_url):
             return WatcherSharer(W, san_url, stream_hooks)
-    logger.error("Valid Watcher not found.")
-    raise ValueError("Valid Watcher not found.")
+    # logger.error("Valid Watcher not found.")
+    raise ValueError(f"Valid Watcher not found: {san_url}")
