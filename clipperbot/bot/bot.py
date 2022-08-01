@@ -77,6 +77,8 @@ class ClipperBot(cm.Bot):
     def check_perms(self, ctx: cm.Context):
         # This is old and broken, but can't rewrite without migrating the
         # existing database.
+        if ctx.interaction:
+            return True
         category = ctx.command.cog_name  # type: ignore
         parents = ctx.invoked_parents
         name = ctx.command.name  # type: ignore
