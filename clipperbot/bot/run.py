@@ -42,4 +42,4 @@ def run():
         database=DATABASE,
         intents=intents,
     )
-    return bot.run(DISCORD_TOKEN)
+    return bot.run(DISCORD_TOKEN, log_handler=None)
