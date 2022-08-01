@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING, Any, Collection, Optional
 import discord as dc
 import discord.app_commands as ac
 import discord.ext.commands as cm
-from discord.abc import MessageableChannel
 
+from .. import DATABASE
 from ..persistent_dict import OldPersistentDict, PersistentDict, PersistentSetDict
 from ..streams.stream import all_streams, clean_space
 from ..streams.stream.get_stream import get_stream
@@ -18,6 +18,7 @@ from . import help_strings
 from .exceptions import StreamNotLegal
 
 if TYPE_CHECKING:
+    from discord.abc import PartialMessageableChannel
     from ..streams.stream.base import Stream
     from .bot import ClipperBot
 
@@ -34,6 +35,47 @@ class _AddToPsd:
         self.psd.add(self.key, stream.unique_id)
 
 
+class _SendEnabledMsg:
+
+        bot: dc.Client | None
+
+        def __init__(self, txtchn: "PartialMessageableChannel"):
+            self.txtchn = txtchn
+
+        # Prevent spamming in the case of a bug, as these messages can be sent
+        # without user prompt.
+        # The constants should be replaced by configs.
+        RT_TIME = 8 * 3600
+        RT_REQS = 4
+        capturing_msgs = PersistentDict[int, int](DATABASE, "capturing_msgs")
+        auto_msg_ratelimits: dict[int, RateLimit] = {}  # {channel_id: RateLimit}
+        async def __call__(self, stream: "Stream"):
+            try:
+                rate_limit = self.auto_msg_ratelimits.setdefault(
+                    self.txtchn.id,
+                    RateLimit(self.RT_TIME, self.RT_REQS),
+                )
+                skipping_msg = rate_limit.skip(self.txtchn.send)
+                msg = await skipping_msg(f"🎦 Clipping enabled for: {stream.title} (<{stream.stream_url}>)")
+                if msg is not None:
+                    if self.txtchn.id in self.capturing_msgs:
+                        try:
+                            old_msg = self.txtchn.get_partial_message(  # type: ignore
+                                self.capturing_msgs[self.txtchn.id]
+                            )
+                            await old_msg.delete()
+                        except Exception:
+                            pass
+                    self.capturing_msgs[self.txtchn.id] = msg.id
+            except Exception as e:
+                logger.error(f"Can't send \"stream started\" message: {e}")
+
+        def __getstate__(self):
+            return self.txtchn.id
+
+        def __setstate__(self, txtchn_id):
+            assert self.bot
+            self.txtchn = self.bot.get_partial_messageable(txtchn_id)
 
 
 class Admin(cm.Cog):
@@ -59,45 +101,7 @@ class Admin(cm.Cog):
 
         aio.create_task(clean_space())
 
-        class SendEnabledMsg:
-            def __init__(self, txtchn: MessageableChannel):
-                self.txtchn: MessageableChannel | dc.PartialMessageable = txtchn
-
-            # Prevent spamming in the case of a bug, as these messages can be sent
-            # without user prompt.
-            # The constants should be replaced by configs.
-            RT_TIME = 8 * 3600
-            RT_REQS = 4
-            capturing_msgs = PersistentDict[int, int](bot.database, "capturing_msgs")
-            auto_msg_ratelimits: dict[int, RateLimit] = {}  # {channel_id: RateLimit}
-            async def __call__(self, stream: "Stream"):
-                try:
-                    rate_limit = self.auto_msg_ratelimits.setdefault(
-                        self.txtchn.id,
-                        RateLimit(self.RT_TIME, self.RT_REQS),
-                    )
-                    skipping_msg = rate_limit.skip(self.txtchn.send)
-                    msg = await skipping_msg(f"🎦 Clipping enabled for: {stream.title} (<{stream.stream_url}>)")
-                    if msg is not None:
-                        if self.txtchn.id in self.capturing_msgs:
-                            try:
-                                old_msg = self.txtchn.get_partial_message(  # type: ignore
-                                    self.capturing_msgs[self.txtchn.id]
-                                )
-                                await old_msg.delete()
-                            except Exception:
-                                pass
-                        self.capturing_msgs[self.txtchn.id] = msg.id
-                except Exception as e:
-                    logger.error(f"Can't send \"stream started\" message: {e}")
-
-            def __getstate__(self):
-                return self.txtchn.id
-
-            def __setstate__(self, txtchn_id):
-                self.txtchn = bot.get_partial_messageable(txtchn_id)
-
-        self.send_enabled_msg = SendEnabledMsg
+        _SendEnabledMsg.bot = bot
 
     def _registered_chns(self, chn_id: int, exclude_url=()) -> str:
         "Formatted string of list of registered channels."
@@ -160,7 +164,8 @@ class Admin(cm.Cog):
                             logger.critical(f"Watcher not active: {ws.target, ctx.channel}")
             else:
                 hook1 = _AddToPsd(self.captured_streams, (ctx.channel.id,))
-                hook2 = self.send_enabled_msg(ctx.channel)
+                assert not isinstance(ctx.channel, dc.GroupChannel)
+                hook2 = _SendEnabledMsg(ctx.channel)
                 try:
                     register = create_watch_sharer(san_url, (hook1, hook2))
                 except ValueError as e:
