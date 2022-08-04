@@ -21,7 +21,7 @@ logger_clipper.setLevel(LOG_LVL)
 logger_clipper.addHandler(handler)
 
 logger_clipper = logging.getLogger("discord")
-logger_clipper.setLevel(LOG_LVL)
+logger_clipper.setLevel(logging.INFO)
 logger_clipper.addHandler(handler)
 
 
