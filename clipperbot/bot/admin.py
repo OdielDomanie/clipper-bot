@@ -32,7 +32,7 @@ class _AddToPsd:
         self.key = key
 
     async def __call__(self, stream: "Stream"):
-        self.psd.add(self.key, stream.unique_id)
+        self.psd.add(self.key, (0, stream.unique_id))
 
 
 class _SendEnabledMsg:
@@ -89,7 +89,7 @@ class Admin(cm.Cog):
             database=bot.database, table_name="registers", depth=1, pickling=True,
         )
         self.onetime_streams = dict[int, set[WatcherSharer]]()
-        # {chn_id: (priority, uid)}
+        # {txtchn_id: (priority, uid)}
         self.captured_streams = PersistentSetDict[tuple[int], tuple[float, object]](
             database=bot.database, table_name="captured_streams", depth=1, pickling=True,
         )
