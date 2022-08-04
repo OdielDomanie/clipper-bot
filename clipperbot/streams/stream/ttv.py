@@ -43,6 +43,7 @@ class TTVStream(StreamWithActDL):
         self.actdl_off.set()
         self._online: StreamStatus | None = online
         self._info_dict = info_dict.copy()
+        self.channel_url = "https://www.twitch.tv/" + info_dict["uploader_id"]
         self._start_time = start_time_from_infodict(info_dict)
         self.unique_id = ttv_stream_uid(info_dict)
 

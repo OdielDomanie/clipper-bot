@@ -49,6 +49,7 @@ class YTStream(StreamWithActDL):
         self.actdl_off.set()
         self._online: StreamStatus | None = online
         self._info_dict = info_dict.copy()
+        self.channel_url = info_dict["channel_url"]
         self._start_time = start_time_from_infodict(info_dict)
         self._pastlive_dl_allowed = True
 
