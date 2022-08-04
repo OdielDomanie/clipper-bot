@@ -134,7 +134,8 @@ async def concat(
         f.writelines(concat)
 
     command = ([
-        ffmpeg, "-y", "hide_banner", "-f", "-concat",
+        ffmpeg, "-y", "-hide_banner", "-f", "concat",
+        "-safe", "0",
         "-i", concat_fpath,
         "-c", "copy", "-movflags", "faststart", out_fpath
     ])
