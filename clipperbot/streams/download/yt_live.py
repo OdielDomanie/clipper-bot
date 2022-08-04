@@ -8,7 +8,8 @@ from asyncio.subprocess import PIPE, create_subprocess_exec
 
 import psutil
 
-from ..exceptions import DownloadBlocked, DownloadForbidden, RateLimited
+from ..exceptions import DownloadBlocked
+
 
 logger = logging.getLogger(__name__)
 
