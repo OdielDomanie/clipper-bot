@@ -63,7 +63,11 @@ class Poller(Watcher):
 
     async def _watch(self):
         while True:
-            s = await self._poll()
+            try:
+                s = await self._poll()
+            except Exception as e:
+                logger.exception(e)
+                s = None
             if s:
                 logger.info(f"Stream started: {self.target}")
                 for hs in self.start_hooks.values():
@@ -79,7 +83,11 @@ class Poller(Watcher):
                     await s.actdl_off.wait()
                     logger.info(f"Stream download ended: {self.target}")
                     # Did it really end?
-                    if not await self._poll():
+                    try:
+                        if not await self._poll():
+                            break
+                    except Exception as e:
+                        logger.exception(e)
                         break
                 # Stream ended
                 logger.info(f"Stream ended: {self.target}")
