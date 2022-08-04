@@ -1,6 +1,9 @@
-from typing import Iterable, Optional, TypedDict
+import logging
+from typing import Iterable, TypedDict
 
 import yt_dlp
+
+logger = logging.getLogger(__name__)
 
 
 class _Section(TypedDict):
@@ -8,37 +11,52 @@ class _Section(TypedDict):
     end_time: float
 
 
-def _match_filter_notlive(info_dict, *, incomplete: bool) -> Optional[str]:
-    if info_dict.get("is_live"):
-        return "is_live"
-
-def _match_filter_live(info_dict, *, incomplete: bool) -> Optional[str]:
-    if not info_dict.get("is_live"):
-        return "is_not_live"
-
-
-def download_past(url: str, output: str, ss: float, t: float):
-    def ranges(info_dict, *, ydl) -> Iterable[_Section]:
-        return ({"start_time": ss, "end_time": ss + t},)
-    with yt_dlp.YoutubeDL({
-        "download_ranges": ranges,
-        "quiet": True,
-        "outtmpl": output,
-        "match_filter": _match_filter_notlive,
-        "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]",
-    }) as ydl:
-        return ydl.download(url)
+class CantDownload(Exception):
+    pass
 
 
 # Needs a yet unmerged commit to yt_dlp: https://github.com/yt-dlp/yt-dlp/issues/3451
-def download_past_live(url: str, output: str, ss: float, t: float):
+# Can give this but still download:
+# WARNING: [youtube] Unable to download webpage: HTTP Error 429: Too Many Requests
+# ie_key = "Youtube"
+
+def download_past(
+    url: str, output: str, ss: int, t: int, *, info_dict=None
+) -> tuple[dict, str]:
+    "Returns info_dict, and either 'post_live' or 'processed'. Can raise CantDownload."
+    if ss < 0 or t <= 0:
+        raise ValueError()
+    def ranges(*args, **kwargs) -> Iterable[_Section]:
+        return ({"start_time": ss, "end_time": ss + t},)
     # Assuming fragments are 1 second long. Not a solid assumption.
-    live_from_start_seq = f"{int(ss)}-{int(t)}"
+    # Can calculate the times from the fragments list in extracted info,
+    # but being fragment-exact is important.
+    live_from_start_seq = f"{int(ss)}-{int(ss+t)}"
+
     with yt_dlp.YoutubeDL({
+        # "download_ranges": ranges,  # using this with live_from_start break it
         "live_from_start":True,
         "live_from_start_seq": live_from_start_seq,
         "quiet": True,
         "outtmpl": output,
-        "match_filter": _match_filter_live
+        "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]",
+        "noprogress": True,
     }) as ydl:
-        return ydl.download(url)
+        logger.info(f"Downloading past of {url}, {ss, t}")
+        # if info_dict:
+        #     extracted_info = info_dict
+        # else:
+        extracted_info = ydl.extract_info(url, download=True, process=True)  # These need to be true for live download to work
+        if extracted_info.get("live_status") == "post_live":
+            live_status = "post_live"
+        elif extracted_info.get("live_status") == "is_live":
+            live_status = "is_live"
+        else:
+            live_status = "processed"
+            # ydl.params["download_ranges"] = ranges
+        logger.info(f"{url}: {live_status}")
+        if live_status == "post_live" and ss + t > 4 * 3600:  # yt-dlp issue #1564
+            raise CantDownload()
+        # ie_result = ydl.process_ie_result(extracted_info)
+        logger.info(f"Download completed: {url, ss, t}")
+    return extracted_info, live_status
