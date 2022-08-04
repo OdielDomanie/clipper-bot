@@ -124,9 +124,9 @@ async def concat(
     for s_path, intrv in sources:
         ss, end = intrv
         concat.extend((
-            "file " + s_path,
-            "inpoint " + str(ss),
-            "outpoint " + str(end),
+            "file " + shlex.quote(s_path),
+            "\ninpoint " + str(ss),
+            "\noutpoint " + str(end),
         ))
 
     concat_fpath = f".concat_{random.randrange(10_000_000)}"
