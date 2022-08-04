@@ -51,7 +51,7 @@ async def cut(
     )
 
     command: list[str] = [
-        ffmpeg, "-y", "hide_banner",
+        ffmpeg, "-y", "-hide_banner",
         "-i", source,
         "-acodec", "copy",
         "-movflags", "faststart",
