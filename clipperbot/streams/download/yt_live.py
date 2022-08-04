@@ -203,3 +203,6 @@ class YTLiveDownload:
         self.__dict__ = state
         self.download_task = None
         self._read_error_task = None
+
+    def __repr__(self) -> str:
+        return repr(self.__getstate__())
