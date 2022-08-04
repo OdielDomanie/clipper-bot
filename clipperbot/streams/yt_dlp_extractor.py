@@ -40,10 +40,12 @@ def fetch_yt_metadata(url: str, *, no_playlist=True, playlist_items=None):
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(url, download=False)
     except yt_dlp.utils.DownloadError as e:
-        # "<channel_name> is offline error is possible in twitch
+        # "<channel_name> is offline error or is not currently live
+        # is possible in twitch
         if (
             "This live event will begin in" in e.args[0]
             or "is offline" in e.args[0]
+            or "is not currently live" in e.args[0]
         ):
             logger.debug(e)
         elif "HTTP Error 429" in e.args[0]:
