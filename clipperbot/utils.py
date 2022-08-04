@@ -235,7 +235,7 @@ _INTRV_ID = TypeVar("_INTRV_ID")
 def find_intersections(
     a: INTRVL, bs: Collection[tuple[_INTRV_ID, INTRVL]]
 ) -> tuple[list[tuple[_INTRV_ID, INTRVL]], list[INTRVL]]:
-    "Returns a tuple of result (id, absolute, relative), ordered, and uncovered."
+    "Returns a tuple of result (id, (rel_start, rel), ordered, and uncovered."
     assert a[0] < a[1]
     remaining = [a]
     result = list[tuple[_INTRV_ID, INTRVL, INTRVL]]()
