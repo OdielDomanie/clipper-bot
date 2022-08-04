@@ -336,6 +336,14 @@ class YTStream(StreamWithActDL):
         )
         for key in stateful:
             del state[key]
+        for format in state["_info_dict"].get("formats", ()):
+            try:
+                del format["fragments"]
+            except KeyError:
+                pass
+        deep_del_key(state["_info_dict"], lambda i: isinstance(i, str) and i.startswith("_"))
+        with open("sample_state.py", "w") as f:
+            f.write(repr(state))
         return state
 
     def __setstate__(self, state: dict):

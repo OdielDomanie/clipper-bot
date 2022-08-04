@@ -10,7 +10,8 @@ import sys
 import threading
 import time
 from types import ModuleType
-from typing import Any, Awaitable, Callable, Collection, Coroutine, TypeVar
+from typing import (Any, Awaitable, Callable, Collection, Coroutine,
+                    MutableMapping, TypeVar)
 
 import dateutil.parser
 import discord as dc
@@ -312,3 +313,18 @@ def timed_cache(duration: float):
 
         return inner  # type: ignore
     return tc_dec
+
+
+def deep_del_key(a: MutableMapping | list | set, filter: Callable[[Any], bool]):
+    "Delete keys matching filter in place, recsively in dicts and lists."
+    # Some sequences like strings recurse infinitely.
+    if isinstance(a, MutableMapping):
+        i_to_rem = [i for i in a if filter(i)]
+        for i in i_to_rem:
+                del a[i]
+        # elif isinstance(a, MutableSequence):
+        #     a.remove(i)
+    values = a.values() if isinstance(a, MutableMapping) else a
+    for value in values:
+        if isinstance(value, (MutableMapping, list, set)):
+            deep_del_key(value, filter)

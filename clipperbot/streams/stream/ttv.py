@@ -309,6 +309,7 @@ class TTVStream(StreamWithActDL):
         )
         for key in stateful:
             del state[key]
+        deep_del_key(state["_info_dict"], lambda i: isinstance(i, str) and i.startswith("_"))
         return state
 
     def __setstate__(self, state: dict):
