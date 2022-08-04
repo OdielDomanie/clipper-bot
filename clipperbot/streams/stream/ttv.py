@@ -6,7 +6,9 @@ import re
 import time
 from typing import Any
 
-from ...utils import INTRVL, find_intersections, lock, start_time_from_infodict
+from ... import CLIP_DIR
+from ...utils import (INTRVL, deep_del_key, find_intersections, lock,
+                      start_time_from_infodict)
 from ...vtuber_names import channels_list
 from .. import cutting
 from ..download.yt_live import YTLiveDownload
@@ -108,7 +110,7 @@ class TTVStream(StreamWithActDL):
         self._download.download_task.cancel()
 
     async def _download_till_end(self):
-        output = os.path.join(self.download_dir, self.title + str(self._actdl_counter) +".ts")
+        output = os.path.join(self.download_dir, self.title.replace("/","_") + str(self._actdl_counter) +".ts")
         self._download = YTLiveDownload(self.stream_url, output)
         self.actdl_off.clear()
         non_cancel_exception = False
@@ -144,9 +146,9 @@ class TTVStream(StreamWithActDL):
 
     async def _download_past(self, ss: int, t: int) -> str:
         async with self._pastdl_lock:
-            if self.online == StreamStatus.PAST:
+            if self.online == StreamStatus.PAST or self.online is None:
                 raise ValueError
-            out_fpath = os.path.join(self.download_dir, self.title + f"{ss}_{t}.mp4")
+            out_fpath = os.path.join(self.download_dir, self.title.replace("/","_") + f"{ss}_{t}.mp4")
             rt = await aio.to_thread(download_past, self.stream_url, out_fpath, ss, t)
             if rt:
                 raise Exception(f"download_past{(self.stream_url, out_fpath, ss, t)} returned {rt}")
@@ -158,9 +160,11 @@ class TTVStream(StreamWithActDL):
     async def _clip_ss(self, ts: float, duration: float, audio_only: bool) -> str:
         ts_irl = self.start_time + ts
         end_irl = ts_irl + duration
-        out_fpath = os.path.join(self.download_dir, self.title + f"_{ts:.0f}_{duration:.0f}")
+        out_fpath = os.path.join(
+            CLIP_DIR, self.title.replace("/","_") + f"_{ts:.0f}_{duration:.0f}"
+        )
 
-        for try_no in range(2):
+        for try_no in range(3):
             if self._download and self._download.start_time <= ts_irl:
                 return await cutting.cut(
                     self._download.output_fpath,
@@ -240,7 +244,9 @@ class TTVStream(StreamWithActDL):
 
     async def _clip_sseof(self, ago: float, duration: float, audio_only: bool) -> str:
         ts = time.time() - ago - self.start_time
-        out_fpath = os.path.join(self.download_dir, self.title + f"_{ts:.0f}_{duration:.0f}")
+        out_fpath = os.path.join(
+            CLIP_DIR, self.title.replace("/","_") + f"_{ts:.0f}_{duration:.0f}"
+        )
         if self._download and (time.time() - self._download.start_time) >= ago:
             return await cutting.cut(
                 self._download.output_fpath,

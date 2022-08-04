@@ -6,12 +6,13 @@ import re
 import time
 from typing import Any
 
-from ...utils import INTRVL, find_intersections, lock, start_time_from_infodict
+from ... import CLIP_DIR
+from ...utils import INTRVL, deep_del_key, find_intersections, lock, start_time_from_infodict
 from ...vtuber_names import channels_list
 from .. import cutting
 from ..download.holodex import holodex_req
 from ..download.yt_live import YTLiveDownload
-from ..download.ytdl_past import download_past, download_past_live
+from ..download.ytdl_past import download_past
 from . import all_streams
 from .base import CantSseof, StreamStatus, StreamWithActDL
 
@@ -110,7 +111,9 @@ class YTStream(StreamWithActDL):
         self._download.download_task.cancel()
 
     async def _download_till_end(self):
-        output = os.path.join(self.download_dir, self.title + str(self._actdl_counter) +".ts")
+        output = os.path.join(
+            self.download_dir, self.title.replace("/","_") + str(self._actdl_counter) +".ts"
+        )
         self._download = YTLiveDownload(self.stream_url, output)
         self.actdl_off.clear()
         non_cancel_exception = False
@@ -145,34 +148,33 @@ class YTStream(StreamWithActDL):
                     return d.output_fpath, ts_irl - d.start_time
         return None
 
-    async def _download_past(self, ss: int, t: int) -> str:
+    async def _download_past(self, ss: int, t: int, use_infodict=False) -> tuple[str, str]:
         async with self._pastdl_lock:
-            if self.online == StreamStatus.ONLINE:
-                if not self.pastlive_dl_allowed:
-                    raise Exception()  # Not well handled, but should be rare anyway.
-                out_fpath = os.path.join(self.download_dir, self.title + f"{ss}_{t}.mp4")
-                rt = await aio.to_thread(download_past_live, self.stream_url, out_fpath, ss, t)
-                if rt:
-                    raise Exception(f"download_past_live{(self.stream_url, out_fpath, ss, t)} returned {rt}")
+            out_fpath = os.path.join(
+                self.download_dir, self.title.replace("/","_") + f"{ss}_{t}.mp4"
+            )
+            info_dict, live_status = await aio.to_thread(
+                download_past, self.stream_url, out_fpath, ss, t,
+                info_dict= use_infodict and self.info_dict
+            )
+            self.info_dict = info_dict
+            if live_status in ("post_live", "is_live"):
                 self._past_segments_live.append((ss, t, out_fpath))
-                return out_fpath
-            elif self.online == StreamStatus.PAST:
-                out_fpath = os.path.join(self.download_dir, self.title + f"{ss}_{t}.mp4")
-                rt = await aio.to_thread(download_past, self.stream_url, out_fpath, ss, t)
-                if rt:
-                    raise Exception(f"download_past{(self.stream_url, out_fpath, ss, t)} returned {rt}")
+            else:
                 self._past_segments_vod.append((ss, t, out_fpath))
-                all_streams[self.unique_id] = self
-                return out_fpath
-        assert False
+
+            return out_fpath, live_status
 
     @lock("_clip_lock")
     async def _clip_ss(self, ts: float, duration: float, audio_only: bool) -> str:
         ts_irl = self.start_time + ts
         end_irl = ts_irl + duration
-        out_fpath = os.path.join(self.download_dir, self.title + f"_{ts:.0f}_{duration:.0f}")
+        out_fpath = os.path.join(
+            CLIP_DIR, self.title.replace("/","_") + f"_{ts:.0f}_{duration:.0f}"
+        )
 
-        for try_no in range(2):  # If file is not found, try again
+        for try_no in range(3):  # If file is not found, try again
+            # If covered by active download
             if self._download and self._download.start_time <= ts_irl:
                 return await cutting.cut(
                     self._download.output_fpath,
@@ -258,7 +260,7 @@ class YTStream(StreamWithActDL):
 
     async def _clip_sseof(self, ago: float, duration: float, audio_only: bool) -> str:
         ts = time.time() - ago - self.start_time
-        out_fpath = os.path.join(self.download_dir, self.title + f"_{ts:.0f}_{duration:.0f}")
+        out_fpath = os.path.join(CLIP_DIR, self.title.replace("/","_") + f"_{ts:.0f}_{duration:.0f}")
         if self._download and (time.time() - self._download.start_time) >= ago:
             return await cutting.cut(
                 self._download.output_fpath,
