@@ -11,3 +11,6 @@ tests/**
 *.m4a
 *.webm
 *.ogg
+**.egg-info
+.concat*
+*.log
