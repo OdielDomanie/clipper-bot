@@ -52,6 +52,7 @@ class YtChnWatcher(Poller):
         uid = yt_stream_uid(stream_url)
         if uid in all_streams:
             stream = all_streams[uid]
+            stream.online = StreamStatus.ONLINE
         else:
             stream = YTStream(
                 stream_url, stream_title, StreamStatus.ONLINE, metadata_dict

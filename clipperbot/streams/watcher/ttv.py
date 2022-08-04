@@ -47,7 +47,7 @@ class TtvWatcher(Poller):
         if uid in all_streams:
             stream = all_streams[uid]
             stream.info_dict = metadata_dict
-
+            stream.online = StreamStatus.ONLINE
         else:
             if not metadata_dict.get("is_live"):
                 logger.log(logging.DEBUG, f"{self.target} is not live.")
