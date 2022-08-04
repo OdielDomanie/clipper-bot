@@ -1,5 +1,30 @@
 [build-system]
 requires = [
-    "setuptools>=42"
+    "setuptools @ git+https://github.com/pypa/setuptools@feature/pep660"
 ]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "clipperbot"
+version = "2.0"
+description = "Discord bot that clips livestreams"
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Operating System :: POSIX",
+    "Programming Language :: Python :: 3",
+]
+dependencies = [
+    "discord.py @ git+https://github.com/Rapptz/discord.py.git",
+    "yt-dlp @ git+https://github.com/OdielDomanie/yt-dlp.git",
+    "starlette",
+    "uvicorn",
+    "aiohttp",
+    "python-dateutil",
+    "psutil",
+    "opencv-python-headless",
+    "python-dotenv",
+]
+
+[tool.setuptools]
+packages = ["clipperbot"]
