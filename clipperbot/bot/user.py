@@ -443,6 +443,8 @@ class Clipping(cm.Cog):
         total_size = sum(os.path.getsize(f) for f in files if os.path.isfile(f))
         excess = total_size - MAX_CLIPS_SIZE
         for f in sorted(files, key=os.path.getmtime):
+            if excess <= 0:
+                break
             logger.info(f"Removing clip file {f}")
             os.remove(f)
 
