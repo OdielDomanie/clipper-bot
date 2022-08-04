@@ -250,7 +250,7 @@ def find_intersections(
                 rem_.extend(diff)
                 # prev_rem.extend(diff)
                 if ints[0] != ints[1]:
-                    result.append((id, ints, (ints[0]-intv[0], ints[1]-intv[1])))
+                    result.append((id, ints, (ints[0]-intv[0], ints[1]-intv[0])))
             else:
                 rem_.append(r)
         remaining = rem_
@@ -261,6 +261,18 @@ def find_intersections(
     else:
         final_res = []
     return final_res, remaining  # type: ignore  # horizontal slicing trick confuses tc
+
+# bs = [
+#     ("a", (2, 5)),
+#     ("b", (7, 9)),
+#     ("c", (8, 12)),
+#     ("d", (2, 5)),
+# ]
+
+# a = (4, 8)
+
+# r = find_intersections(a, bs)
+# ([('a', (2, 3)), ('b', (0, 1))], [(5, 7)])
 
 
 CF = TypeVar("CF", bound=Callable[..., Coroutine])

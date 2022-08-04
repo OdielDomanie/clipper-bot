@@ -201,10 +201,18 @@ class TTVStream(StreamWithActDL):
                 if self.online:
                     raise ValueError
                 else:
-                    add_s = [
-                        (await self._download_past(s[0]-30, s[1]-s[0]+30), (30, -30)) for s in vod_uncovered
-                    ]
-                    return await cutting.concat(*(add_s + vod_covered), out_fpath=out_fpath)  # type: ignore
+
+                    add_s = list[tuple[str, tuple[int, int]]]()
+                    for s in vod_uncovered:
+                        dl_start = max(s[0]-30,0)
+                        start_diff = s[0] - dl_start
+                        dl_end = min(s[1], int(self.end_time)) if self.end_time else s[1]
+                        end_diff = s[1] - dl_end
+                        o = await self._download_past(dl_start, dl_end-dl_start)
+                        add_s.append(
+                            (o, (start_diff, end_diff))
+                        )
+                    return await cutting.concat(*(add_s + vod_covered), out_fpath=out_fpath)
             except Exception:
                 for fpath, i in vod_ints:
                     if not os.path.isfile(fpath):

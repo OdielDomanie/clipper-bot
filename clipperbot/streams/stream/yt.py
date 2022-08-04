@@ -205,34 +205,45 @@ class YTStream(StreamWithActDL):
 
             # No live download can fully cover the clip.
             clip_intrv = (round(ts), round(ts+duration))
-
-            vod_ints: list[tuple[str, INTRVL]] = [(d[2], (d[0], d[0]+d[1])) for d in self._past_segments_vod]
-            vod_covered, vod_uncovered = find_intersections(clip_intrv, vod_ints)
-            plive_ints: list[tuple[str, INTRVL]] = [(d[2], (d[0], d[0]+d[1])) for d in self._past_segments_live]
-            plive_covered, plive_uncovered = find_intersections(clip_intrv, plive_ints)
-
             try:
-                if self.online:
-                    add_s = [
-                        (await self._download_past(s[0]-30, s[1]-s[0]+30), (30, -30))
-                        for s in plive_uncovered
-                    ]
-                    return await cutting.concat(*(add_s + plive_covered), out_fpath=out_fpath)  # type: ignore
+                vod_ints: list[tuple[str, INTRVL]] = [(d[2], (d[0], d[0]+d[1])) for d in self._past_segments_vod]
+                vod_covered, vod_uncovered = find_intersections(clip_intrv, vod_ints)
+                plive_ints: list[tuple[str, INTRVL]] = [(d[2], (d[0], d[0]+d[1])) for d in self._past_segments_live]
+                plive_covered, plive_uncovered = find_intersections(clip_intrv, plive_ints)
+
+                og_live_status = self.info_dict["live_status"]
+                if self.info_dict["live_status"] in ("post_live", "is_live"):
+                    covered = plive_covered
+                    uncovered = plive_uncovered
                 else:
-                    add_s = [
-                        (await self._download_past(s[0]-30, s[1]-s[0]+30), (30, -30)) for s in vod_uncovered
-                    ]
-                    return await cutting.concat(*(add_s + vod_covered), out_fpath=out_fpath)  # type: ignore
+                    covered = vod_covered
+                    uncovered = vod_uncovered
+
+                add_s = list[tuple[str, tuple[int, int]]]()
+                for s in uncovered:
+                    dl_start = max(s[0]-30,0)
+                    start_diff = s[0] - dl_start
+                    dl_end = min(s[1]+30, int(self.end_time or time.time()-self.start_time))
+                    end_diff = s[1] - dl_end
+                    o, ls = await self._download_past(dl_start, dl_end-dl_start, use_infodict=bool(try_no))
+                    if ls != og_live_status:
+                        raise Exception("Wrong live_status")
+                    add_s.append(
+                        (o, (start_diff, (dl_end-dl_start)+end_diff))
+                    )
+                return await cutting.concat(*(add_s + covered), out_fpath=out_fpath)
+
             except Exception:
-                for ints in (vod_ints, plive_ints):
-                    for fpath, i in ints:
+                retry = False
+                for past_segments in (self._past_segments_vod, self._past_segments_live):
+                    for a, b, fpath in past_segments:
                         if not os.path.isfile(fpath):
                             if try_no < 2:
                                 logger.error(f"File {fpath} not found, trying clip again.")
-                                ints.remove((fpath, i))
-                                continue
-                            else:
-                                raise
+                                past_segments.remove((a, b, fpath))
+                                retry = True
+                if not retry:
+                    raise
         assert False  # This is never reached.
 
     async def is_alias(self, name: str) -> bool:
