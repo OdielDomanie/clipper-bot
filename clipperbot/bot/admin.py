@@ -258,19 +258,19 @@ class Admin(cm.Cog):
         return res
 
     @cm.hybrid_command()
-    @ac.autocomplete(channel=all_stream_autocomp)
+    @ac.autocomplete(stream_name=all_stream_autocomp)
     @ac.describe(
-        channel="Channel name or stream URL."
+        stream_name="Stream or channel URL, or stream name."
     )
     @thinking
-    async def stream(self, ctx: cm.Context, channel: str):
+    async def stream(self, ctx: cm.Context, stream_name: str):
         "Enable clipping a single stream instead of registering a channel."
         try:
-            san_url, info_dict = await get_stream_url(channel)
-        except ValueError:
+            san_url, info_dict = await get_stream_url(stream_name)
+        except ValueError as e:
             if ctx.interaction:
                 await ctx.interaction.delete_original_message()
-            await ctx.send(f"{channel} is not a valid channel name or stream url 🤨", ephemeral=True)
+            await ctx.send(f"{stream_name} is not a valid channel name or stream url 🤨", ephemeral=True)
             return
 
         for ws in self.registers[(ctx.channel.id,)]:
