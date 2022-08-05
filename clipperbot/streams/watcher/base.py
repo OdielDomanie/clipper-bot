@@ -86,6 +86,9 @@ class Poller(Watcher):
                     try:
                         if not await self._poll():
                             break
+                        else:
+                            logger.warning(f"Stream dl ended but is still online: {self.target}")
+                            await aio.sleep(self.poll_period/3)
                     except Exception as e:
                         logger.exception(e)
                         break
