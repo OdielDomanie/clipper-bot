@@ -94,7 +94,10 @@ class YtStrmWatcher(Poller):
         logger.info(f"Stream started: {self.target}")
         for hs in self.start_hooks.values():
             for h in hs:
-                await h(s)
+                try:
+                    await h(s)
+                except Exception as e:
+                    logger.exception(e)
         self.stream_off.clear()
         self.stream_on.set()
         assert isinstance(s, StreamWithActDL)
