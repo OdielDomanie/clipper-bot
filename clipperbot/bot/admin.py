@@ -239,12 +239,12 @@ class Admin(cm.Cog):
 
         sorted_streams = sorted(
             all_streams.values(),
-            key=lambda s: (s.active, s, s.end_time or s.start_time)
+            key=lambda s: (s.active, s.end_time or s.start_time)
         )
 
         res = list[ac.Choice]()
         for s in sorted_streams:
-            if s.is_alias(curr):
+            if await s.is_alias(curr):
                 res.append(ac.Choice(name=s.title, value=s.stream_url))
             if len(res) >= AUTOCOMP_LIM:
                 break

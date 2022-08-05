@@ -95,7 +95,7 @@ class Clipping(cm.Cog):
             self.admin_cog.captured_streams[it.channel_id,],
             key=lambda ps: (
                 (s := all_streams[ps[1]])
-                and (s.active, s, s.end_time or s.start_time)
+                and (s.active, s.end_time or s.start_time)
             )
         )
 
