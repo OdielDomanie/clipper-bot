@@ -25,7 +25,9 @@ def get_from_chn(chn_url: str):
 def get_chns_from_name(
     q_name: str,
 ) -> tuple[str, tuple[str, ...], str, str | None]:
-    "return the channel id, channel urls, channel name and en name. Raise KeyError if not found."
+    """Return the channel id, channel urls, channel name and en name.
+    Can return from partial matches. Raise KeyError if not found.
+    """
 
     # First check if a word starts with the query
     for chn_id, tup in channels_list.items():
