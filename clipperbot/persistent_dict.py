@@ -280,7 +280,7 @@ class PersistentSetDict(MutableMapping[KTT, frozenset[VT]]):
             f"""DELETE FROM '{self.table_name}' WHERE
             {' AND '.join(key+' = ?' for key in self._keys)}
             AND value_ = ?""",
-            key_strs + ((repr(value),)),
+            key_strs + ((self.dump_v(value),)),
         )
         con.commit()
         con.close()
