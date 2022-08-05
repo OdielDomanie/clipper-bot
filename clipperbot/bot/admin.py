@@ -273,7 +273,7 @@ class Admin(cm.Cog):
             await ctx.send(f"{stream_name} is not a valid channel name or stream url 🤨", ephemeral=True)
             return
 
-        for ws in self.registers[(ctx.channel.id,)]:
+        for ws in self.registers.get((ctx.channel.id,), ()):
             if ws.active_stream and (ws.active_stream.stream_url == san_url or ws.target == san_url):
                 if ctx.interaction:
                     await ctx.interaction.delete_original_message()
@@ -283,6 +283,7 @@ class Admin(cm.Cog):
         hook = _AddToPsd("captured_streams", (ctx.channel.id,))
         ws: WatcherSharer = create_watch_sharer(san_url, stream_hooks=(hook,))
         self.onetime_streams.setdefault(ctx.channel.id, set()).add(ws)
+        # Doesn't survive a restart. An okay concession for simplicity.
         try:
             ws.start()
             waiting_for_msg = await ctx.send(f"👀 Waiting for <{san_url}>")
@@ -297,7 +298,7 @@ class Admin(cm.Cog):
         "Return streams that can be clipped in this txt channel that already are in the cache."
         res = set[tuple[float, "Stream"]]()
         for s in all_streams.values():
-            if s.channel_url in [w.targets_url for w in self.registers[chn_id,]]:
+            if s.channel_url in [w.targets_url for w in self.registers.get((chn_id,), ())]:
                 res.add((0, s))
 
         for p, suid in self.captured_streams[chn_id,]:
