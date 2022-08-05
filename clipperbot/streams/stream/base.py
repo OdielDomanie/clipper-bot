@@ -112,7 +112,6 @@ class Stream(ABC):
         return hash(self.unique_id)
 
     def __eq__(self, __o: "Stream") -> bool:
-        assert self is __o  # This should be true for everything to work correctly.
         return self.unique_id == __o.unique_id
 
     def __str__(self) -> str:
