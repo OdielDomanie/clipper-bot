@@ -284,7 +284,7 @@ class TTVStream(StreamWithActDL):
                 self._past_segments_vod.remove((a, b, fpath))
 
         all_files.sort(key=lambda fps: fps[2].st_mtime, reverse=True)
-        while cleaned_size < size or not all_files:
+        while cleaned_size < size and all_files:
             li, path, stat = all_files.pop()
             path.unlink(missing_ok=True)
             logger.info(f"Deleted: {path}")
