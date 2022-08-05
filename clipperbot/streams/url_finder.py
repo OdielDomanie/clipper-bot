@@ -98,7 +98,7 @@ async def get_stream_url(stream_name: str) -> tuple[str, dict | None]:
             info_dict = await aio.to_thread(fetch_yt_metadata, base_url + "/live")
 
             if info_dict and info_dict.get("is_live"):  # is live
-                return "https://www.youtube.com/watch?v=" + info_dict["id"]
+                return "https://www.youtube.com/watch?v=" + info_dict["id"], info_dict
 
             else:  # is not live, get the last was_live vod
                 info_dict_ls = await aio.to_thread(
