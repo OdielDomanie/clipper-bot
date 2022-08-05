@@ -75,31 +75,42 @@ class YtStrmWatcher(Poller):
 
     async def _watch(self):
         while True:
-            s = await self._poll()
+            try:
+                s = await self._poll()
+            except Exception as e:
+                logger.exception(e)
+                s = None
             if s:
-                logger.info(f"Stream started: {self.target}")
-                for hs in self.start_hooks.values():
-                    for h in hs:
-                        await h(s)
-                self.stream_off.clear()
-                self.stream_on.set()
-                assert isinstance(s, StreamWithActDL)
-                self.active_stream = s
-                while True:
-                    if not s.active:
-                        s.start_download()
-                    await s.actdl_off.wait()
-                    logger.info(f"Stream download ended: {self.target}")
-                    # Did it really end?
-                    if not await self._poll():
-                        break
-                # Stream ended
-                logger.info(f"Stream ended: {self.target}")
-                s.online = StreamStatus.PAST
-                self.stream_on.clear()
-                self.stream_off.set()
-                self.active_stream = None
-            await aio.sleep(self.poll_period)
+                break
+            else:
+                await aio.sleep(self.poll_period)
+        if s.online == StreamStatus.PAST:
+            logger.info("Watched stream is already offline.")
+            return
+        logger.info(f"Stream started: {self.target}")
+        for hs in self.start_hooks.values():
+            for h in hs:
+                await h(s)
+        self.stream_off.clear()
+        self.stream_on.set()
+        assert isinstance(s, StreamWithActDL)
+        self.active_stream = s
+        while True:
+            try:
+                if not await self._poll():
+                    break
+                else:
+                    logger.warning(f"Stream dl ended but is still online: {self.target}")
+                    await aio.sleep(self.poll_period/3)
+            except Exception as e:
+                logger.exception(e)
+                break
+        # Stream ended
+        logger.info(f"Stream ended: {self.target}")
+        s.online = StreamStatus.PAST
+        self.stream_on.clear()
+        self.stream_off.set()
+        self.active_stream = None
 
 
 if TYPE_CHECKING:
