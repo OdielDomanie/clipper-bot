@@ -26,13 +26,17 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+_admin_cog_inst = list["Admin"]()
+
+
 class _AddToPsd:
-    def __init__(self, psd: PersistentSetDict, key: tuple):
-        self.psd = psd
+    def __init__(self, psd_varname: str, key: tuple):
+        self.psd_name = psd_varname
         self.key = key
 
     async def __call__(self, stream: "Stream"):
-        self.psd.add(self.key, (0, stream.unique_id))
+        psd: PersistentSetDict = getattr(_admin_cog_inst[0], self.psd_name)
+        psd.add(self.key, (0, stream.unique_id))
 
 
 class _SendEnabledMsg:
@@ -137,6 +141,8 @@ class Admin(cm.Cog):
         """Make this channel available for clipping. Leave `channel` empty to view the currently registered."
         When `channel_url` goes live, the bot will automatically start capturing.
         """
+        assert not _admin_cog_inst  # Only one instance of this cog should ever be
+        _admin_cog_inst.append(self)
         ctx.channel
         if not channel:
             current = self._registered_chns(ctx.channel.id)
@@ -166,7 +172,7 @@ class Admin(cm.Cog):
                             # This shouldn't happen
                             logger.critical(f"Watcher not active: {ws.target, ctx.channel}")
             else:
-                hook1 = _AddToPsd(self.captured_streams, (ctx.channel.id,))
+                hook1 = _AddToPsd("captured_streams", (ctx.channel.id,))
                 assert not isinstance(ctx.channel, dc.GroupChannel)
                 hook2 = _SendEnabledMsg(ctx.channel)
                 try:
@@ -267,7 +273,7 @@ class Admin(cm.Cog):
                 await ctx.send(f"{san_url} is already enabled on this text channel 🤨", ephemeral=True)
                 return
 
-        hook = _AddToPsd(self.captured_streams, (ctx.channel.id,))
+        hook = _AddToPsd("captured_streams", (ctx.channel.id,))
         ws: WatcherSharer = create_watch_sharer(san_url, stream_hooks=(hook,))
         self.onetime_streams.setdefault(ctx.channel.id, set()).add(ws)
         try:
