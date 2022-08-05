@@ -197,7 +197,7 @@ class Admin(cm.Cog):
 
     async def unreg_autocomp(self, it: dc.Interaction, curr: str) -> list[ac.Choice]:
         assert it.channel
-        registers = self.registers[it.channel.id,]
+        registers = self.registers.get((it.channel.id,), ())
         fitting_registers = [w for w in registers if w.is_alias(curr)]
         return [ac.Choice(name=w.target, value=w.target) for w in fitting_registers][:25]
 
