@@ -22,7 +22,7 @@ class WatcherSharer:
     ):
         "`target` is either a san url or a protocol string like `'collabs:<san_url>'`"
         self.target = target
-        self.stream_hooks = tuple(stream_hooks)
+        self._stream_hooks = tuple(stream_hooks)
         if target not in watchers:
             watcher = watcher_class(target)
             sharer = Sharer(watcher)
@@ -38,7 +38,7 @@ class WatcherSharer:
         else:
             logger.info(f"Sharing watcher for {self.target}")
         self.sharer.start_count += 1
-        self.sharer.w.start_hooks[self] = self.stream_hooks
+        self.sharer.w.start_hooks[self] = self._stream_hooks
         self.active = True
 
     def stop(self):
@@ -79,7 +79,7 @@ class WatcherSharer:
 
     # pickling
     def __reduce__(self):
-        return create_watch_sharer, (self.target, self.stream_hooks)
+        return create_watch_sharer, (self.target, self._stream_hooks)
 
 
 watcher_classes = (
