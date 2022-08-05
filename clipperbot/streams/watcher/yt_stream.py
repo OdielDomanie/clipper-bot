@@ -27,10 +27,14 @@ class YtStrmWatcher(Poller):
         self.stream_title: str | None = None
         super().__init__(target)
 
+    @property
+    def name(self):
+        return self.active_stream and self.active_stream.title
+
     def is_alias(self, name: str) -> bool:
         return (
             name in self.target
-            or name in self.name
+            or (bool(self.name) and name in self.name)
             or (self.stream_title is not None and name in self.stream_title)
         )
 
