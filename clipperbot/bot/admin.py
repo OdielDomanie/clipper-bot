@@ -249,6 +249,12 @@ class Admin(cm.Cog):
             if len(res) >= AUTOCOMP_LIM:
                 break
 
+        if len(res) < AUTOCOMP_LIM:
+            for chn_id, urls, name, en_name in get_all_chns_from_name(curr):
+                if len(res) >= AUTOCOMP_LIM:
+                    break
+                res.append(ac.Choice(name=name, value=chn_id))
+
         return res
 
     @cm.hybrid_command()
