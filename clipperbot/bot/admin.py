@@ -84,6 +84,8 @@ class _SendEnabledMsg:
 
 class Admin(cm.Cog):
     def __init__(self, bot: "ClipperBot"):
+        assert not _admin_cog_inst  # Only one instance of this cog should ever be
+        _admin_cog_inst.append(self)
 
         self.bot = bot
         self.settings = PersistentSetDict[tuple[str, int], Any](
@@ -142,8 +144,6 @@ class Admin(cm.Cog):
         """Make this channel available for clipping. Leave `channel` empty to view the currently registered."
         When `channel_url` goes live, the bot will automatically start capturing.
         """
-        assert not _admin_cog_inst  # Only one instance of this cog should ever be
-        _admin_cog_inst.append(self)
         ctx.channel
         if not channel:
             current = self._registered_chns(ctx.channel.id)
