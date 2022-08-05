@@ -118,6 +118,7 @@ class Admin(cm.Cog):
                 txt = '<' + w.targets_url + '>'
                 if w.name:
                     txt += f" {(w.name)}"
+                res.append(txt)
 
         return ", ".join(res)
 
