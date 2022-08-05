@@ -48,6 +48,7 @@ class YTStream(StreamWithActDL):
         self.title = title
         self.actdl_off = aio.Event()
         self.actdl_off.set()
+        self.actdl_on = aio.Event()
         self._online: StreamStatus | None = online
         self._info_dict = info_dict.copy()
         self.channel_url = info_dict["channel_url"]
@@ -99,7 +100,7 @@ class YTStream(StreamWithActDL):
 
     def start_download(self):
         "Start the live download."
-        assert not self._download_task
+        assert not self.active
         self._download_task = aio.create_task(self._download_till_end())
         if not self._start_time:
             # Will be way off if started late. If started late, the info_dict must be
@@ -114,8 +115,10 @@ class YTStream(StreamWithActDL):
         output = os.path.join(
             self.download_dir, self.title.replace("/","_") + str(self._actdl_counter) +".ts"
         )
+        logger.debug(f"Initializing YTLiveDownload{(self.stream_url, output)}")
         self._download = YTLiveDownload(self.stream_url, output)
         self.actdl_off.clear()
+        self.actdl_on.set()
         non_cancel_exception = False
         try:
             assert self._download.download_task
@@ -131,6 +134,8 @@ class YTStream(StreamWithActDL):
                 self._past_actdl.append((time.time(), self._download))
             self._download = None
             all_streams[self.unique_id] = self
+            logger.debug(f"YTLiveDownload{(self.stream_url, output)} ended.")
+            self.actdl_on.clear()
             self.actdl_off.set()
 
     def _get_download_loc_ts(self, ts: float, duration:float) -> tuple[str, float] | None:
@@ -336,6 +341,7 @@ class YTStream(StreamWithActDL):
             "_clip_lock",
             "_online",
             "actdl_off",
+            "actdl_on",
         )
         for key in stateful:
             del state[key]
@@ -358,3 +364,4 @@ class YTStream(StreamWithActDL):
         self._online = None
         self.actdl_off = aio.Event()
         self.actdl_off.set()
+        self.actdl_on = aio.Event()

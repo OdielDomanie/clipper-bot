@@ -43,6 +43,7 @@ class TTVStream(StreamWithActDL):
         self.title = title
         self.actdl_off = aio.Event()
         self.actdl_off.set()
+        self.actdl_on = aio.Event()
         self._online: StreamStatus | None = online
         self._info_dict = info_dict.copy()
         self.channel_url = "https://www.twitch.tv/" + info_dict["uploader_id"]
@@ -113,6 +114,7 @@ class TTVStream(StreamWithActDL):
         output = os.path.join(self.download_dir, self.title.replace("/","_") + str(self._actdl_counter) +".ts")
         self._download = YTLiveDownload(self.stream_url, output)
         self.actdl_off.clear()
+        self.actdl_on.set()
         non_cancel_exception = False
         try:
             assert self._download.download_task
@@ -326,3 +328,4 @@ class TTVStream(StreamWithActDL):
         self._pastdl_lock = aio.Lock()
         self._clip_lock = aio.Lock()
         self._online = None
+        self.actdl_on = aio.Event()

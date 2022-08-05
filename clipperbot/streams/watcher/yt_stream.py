@@ -100,8 +100,16 @@ class YtStrmWatcher(Poller):
         assert isinstance(s, StreamWithActDL)
         self.active_stream = s
         while True:
+            if not s.active:
+                logger.info(f"Starting download for: {self.target}")
+                s.start_download()
+                await s.actdl_on.wait()
+            await s.actdl_off.wait()
+            logger.info(f"Stream download ended: {self.target}")
+            # Did it really end?
             try:
                 if not await self._poll():
+                    logger.debug(f"Poll returned None after dl ended: {self.target}")
                     break
                 else:
                     logger.warning(f"Stream dl ended but is still online: {self.target}")

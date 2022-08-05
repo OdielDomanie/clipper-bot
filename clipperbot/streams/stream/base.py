@@ -124,3 +124,4 @@ class StreamWithActDL(Stream):
         "Start the live download."
 
     actdl_off: aio.Event
+    actdl_on: aio.Event
