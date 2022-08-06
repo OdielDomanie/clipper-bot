@@ -91,22 +91,27 @@ async def _clip_process(command: Iterable[str], out_fpath: str) -> str:
             stderr=sp.STDOUT,
             preexec_fn=_increment_nice,
         )
-    logger.debug("Clip process started.")
-    ffmpeg_logger = logging.getLogger(logger.name + ".ffmpeg")
-    encoding = sys.stdout.encoding if sys.stdout.encoding else "utf-8"
+    try:
+        logger.debug("Clip process started.")
+        ffmpeg_logger = logging.getLogger(logger.name + ".ffmpeg")
+        encoding = sys.stdout.encoding if sys.stdout.encoding else "utf-8"
 
-    ffmpeg_out, _ = await process.communicate()
-    ffmpeg_logger.debug(str(ffmpeg_out, encoding))
+        ffmpeg_out, _ = await process.communicate()
+        ffmpeg_logger.debug(str(ffmpeg_out, encoding))
 
-    if (return_code := await process.wait()) == 0:
-        logger.debug("Clip process finished with 0.")
-    else:
-        logger.error(f"Clip process ended with {return_code}")
-        if os.path.isfile(out_fpath):
-            logger.error("However, clip file exists. Trying to continue on")
+        if (return_code := await process.wait()) == 0:
+            logger.debug("Clip process finished with 0.")
         else:
-            raise Exception("Clip not created.")
-    return out_fpath
+            logger.error(f"Clip process ended with {return_code}")
+            if os.path.isfile(out_fpath):
+                logger.error("However, clip file exists. Trying to continue on")
+            else:
+                raise Exception("Clip not created.")
+        return out_fpath
+    finally:
+        if not process.returncode:
+            logger.info("Terminating ffmpeg process.")
+            process.terminate()
 
 
 # This is a different function despite seeming like a generalized version of the above
