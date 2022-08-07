@@ -271,7 +271,7 @@ class Admin(cm.Cog):
         except ValueError as e:
             if ctx.interaction:
                 await ctx.interaction.delete_original_message()
-            await ctx.send(f"{stream_name} is not a valid channel name or stream url 🤨", ephemeral=True)
+            await ctx.send(f"{stream_name} is not a valid stream or a live channel 🤨", ephemeral=True)
             return
 
         for ws in self.registers.get((ctx.channel.id,), ()):
