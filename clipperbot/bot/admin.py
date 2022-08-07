@@ -60,7 +60,7 @@ class _SendEnabledMsg:
                     RateLimit(self.RT_TIME, self.RT_REQS),
                 )
                 skipping_msg = rate_limit.skip(self.txtchn.send)
-                msg = await skipping_msg(f"🎦 Clipping enabled for: {stream.title} (<{stream.stream_url}>)")
+                msg = await skipping_msg(f"🔴 Clipping enabled for: {stream.title} (<{stream.stream_url}>)")
                 if msg is not None:
                     if self.txtchn.id in self.capturing_msgs:
                         try:
@@ -288,7 +288,7 @@ class Admin(cm.Cog):
             ws.start()
             waiting_for_msg = await ctx.send(f"👀 Waiting for <{san_url}>")
             await ws.stream_on.wait()
-            await waiting_for_msg.edit(content=f"🎦 Clipping enabled for <{san_url}>")
+            await waiting_for_msg.edit(content=f"🔴 Clipping enabled for <{san_url}>")
             await ws.stream_off.wait()
         finally:
             self.onetime_streams[ctx.channel.id].remove(ws)
