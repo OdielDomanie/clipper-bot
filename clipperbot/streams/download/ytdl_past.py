@@ -26,15 +26,18 @@ def download_past(
     "Returns info_dict, and either 'post_live' or 'processed'. Can raise CantDownload."
     if ss < 0 or t <= 0:
         raise ValueError()
-    def ranges(*args, **kwargs) -> Iterable[_Section]:
-        return ({"start_time": ss, "end_time": ss + t},)
+    def ranges(info_dict: dict, ydl) -> Iterable[_Section]:
+        if info_dict.get("live_status") == "is_live":
+            return ()
+        else:
+            return ({"start_time": ss, "end_time": ss + t},)
     # Assuming fragments are 1 second long. Not a solid assumption.
     # Can calculate the times from the fragments list in extracted info,
     # but being fragment-exact is important.
     live_from_start_seq = f"{int(ss)}-{int(ss+t)}"
 
     with yt_dlp.YoutubeDL({
-        # "download_ranges": ranges,  # using this with live_from_start break it
+        "download_ranges": ranges,  # using this with live_from_start break it
         "live_from_start":True,
         "live_from_start_seq": live_from_start_seq,
         "quiet": True,
@@ -47,12 +50,13 @@ def download_past(
         #     extracted_info = info_dict
         # else:
         extracted_info = ydl.extract_info(url, download=True, process=True)  # These need to be true for live download to work
-        if extracted_info.get("live_status") == "post_live":
-            live_status = "post_live"
-        elif extracted_info.get("live_status") == "is_live":
-            live_status = "is_live"
-        else:
-            live_status = "processed"
+        # if extracted_info.get("live_status") == "post_live":
+        #     live_status = "post_live"
+        # elif extracted_info.get("live_status") == "is_live":
+        #     live_status = "is_live"
+        # else:
+        #     live_status = "processed"
+        live_status = extracted_info.get("live_status")
             # ydl.params["download_ranges"] = ranges
         logger.info(f"{url}: {live_status}")
         if live_status == "post_live" and ss + t > 4 * 3600:  # yt-dlp issue #1564
