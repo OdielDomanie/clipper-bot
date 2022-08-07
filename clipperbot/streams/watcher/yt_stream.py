@@ -41,8 +41,9 @@ class YtStrmWatcher(Poller):
 
     async def _poll(self) -> None | Stream:
 
-        metadata_dict = await aio.to_thread(fetch_yt_metadata, self.target)
-
+        metadata_dict = await aio.to_thread(
+            fetch_yt_metadata, self.target
+        )
         if not metadata_dict:
             logger.log(
                 logging.DEBUG,
@@ -56,24 +57,30 @@ class YtStrmWatcher(Poller):
         stream_title = metadata_dict["title"][:-17]
         self.stream_title = stream_title
 
-        if not metadata_dict.get("is_live"):
-            logger.log(logging.DEBUG, f"{self.target} is not live.")
+        if metadata_dict.get("was_live") or not metadata_dict.get("live_status"):
+            logger.debug(f"{self.target} is past.")
+            status = StreamStatus.PAST
+        elif metadata_dict.get("is_live"):
+            logger.debug(f"{self.target} is online.")
+            status = StreamStatus.ONLINE
+        else:
+            logger.debug(f"{self.target} is not live.")
             return None
 
+        if not metadata_dict.get("live_status"):
+            logger.info(f"{self.target} is not a stream.")
+
+        # TODO: Return stream that was in the past, or not a stream at all.
         uid = yt_stream_uid(stream_url)
         if uid in all_streams:
             stream = all_streams[uid]
-            stream.online = StreamStatus.ONLINE
+            stream.online = status
+            stream.info_dict = metadata_dict
         else:
             stream = YTStream(
-                stream_url, stream_title, StreamStatus.ONLINE, metadata_dict
+                stream_url, stream_title, status, metadata_dict
             )
             all_streams[uid] = stream
-
-        logger.log(
-            logging.DEBUG,
-            f"{self.target} is live with at {stream_url} / {stream_title}"
-        )
 
         return stream
 
@@ -88,16 +95,20 @@ class YtStrmWatcher(Poller):
                 break
             else:
                 await aio.sleep(self.poll_period)
-        if s.online == StreamStatus.PAST:
-            logger.info("Watched stream is already offline.")
-            return
-        logger.info(f"Stream started: {self.target}")
+        logger.info(f"Stream found: {s.stream_url, s.title}")
         for hs in self.start_hooks.values():
             for h in hs:
                 try:
                     await h(s)
                 except Exception as e:
                     logger.exception(e)
+        if s.online == StreamStatus.PAST:
+            logger.info("Watched stream is already offline.")
+            self.stream_on.set()
+            self.stream_on.clear()
+            self.stream_off.set()
+            return
+        logger.info(f"Stream started: {self.target}")
         self.stream_off.clear()
         self.stream_on.set()
         assert isinstance(s, StreamWithActDL)
