@@ -231,10 +231,10 @@ class TTVStream(StreamWithActDL):
                             raise
         assert False
 
-    async def is_alias(self, name: str) -> bool:
+    def is_alias(self, name: str) -> bool:
         channel_id = self.info_dict["channel_url"].split("/")[-1]
         return (
-            name in self.title
+            name.lower() in self.title.lower()
             or name in self.stream_url
             or name in self.info_dict["channel_url"]
             or any(

@@ -97,7 +97,7 @@ class Stream(ABC):
         "Clip and return the file path."
 
     @abstractmethod
-    async def is_alias(self, name: str) -> bool:
+    def is_alias(self, name: str) -> bool:
         "If this stream can be partially described by the name or url."
 
     @abstractmethod

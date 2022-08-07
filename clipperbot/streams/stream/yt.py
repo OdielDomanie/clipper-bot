@@ -254,13 +254,18 @@ class YTStream(StreamWithActDL):
                     raise
         assert False  # This is never reached.
 
-    async def is_alias(self, name: str) -> bool:
+    def is_alias(self, name: str) -> bool | Any:
         channel_id = self.info_dict["channel_url"].split("/")[-1]
+        try:
+            og_name, en_name = channels_list[channel_id][1:]
+        except KeyError:
+            og_name, en_name = "", ""
         return (
-            name in self.title
+            name.lower() in self.title.lower()
             or name in self.stream_url
             or name in self.info_dict["channel_url"]
-            or name in channels_list.get(channel_id, ())[1:]
+            or name.lower() in og_name.lower()
+            or (en_name and name.lower() in en_name.lower())
         )
 
     async def _clip_sseof(self, ago: float, duration: float, audio_only: bool) -> str:
