@@ -109,9 +109,12 @@ async def _clip_process(command: Iterable[str], out_fpath: str) -> str:
                 raise Exception("Clip not created.")
         return out_fpath
     finally:
-        if not process.returncode:
+        if process.returncode is None:
             logger.info("Terminating ffmpeg process.")
-            process.terminate()
+            try:
+                process.terminate()
+            except Exception as e:
+                logger.error(e)
 
 
 # This is a different function despite seeming like a generalized version of the above
