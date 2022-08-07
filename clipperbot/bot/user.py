@@ -1,7 +1,9 @@
+import asyncio as aio
 import functools
 import logging
 import os
 import pickle
+import random
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional
 
@@ -12,6 +14,8 @@ from discord.ext import commands as cm
 
 from .. import DEF_AGO, DEF_DURATION, MAX_CLIPS_SIZE, MAX_DURATION
 from ..persistent_dict import PersistentDict
+from ..streams import cutting
+from ..streams.clip import Clip
 from ..streams.exceptions import DownloadCacheMissing
 from ..streams.stream import all_streams
 from ..utils import deltatime_to_str, rreload, thinking
@@ -96,11 +100,12 @@ class Clipping(cm.Cog):
             key=lambda ps: (
                 (s := all_streams[ps[1]])
                 and (s.active, s.end_time or s.start_time)
-            )
+            ),
+            reverse=True
         )
 
         res = list[ac.Choice]()
-        for uid in p_capped_stream_uid:
+        for p, uid in p_capped_stream_uid:
             s = all_streams[uid]
             if s.is_alias(curr):
                 res.append(ac.Choice(name=s.title, value=s.stream_url))

@@ -239,12 +239,13 @@ class Admin(cm.Cog):
 
         sorted_streams = sorted(
             all_streams.values(),
-            key=lambda s: (s.active, s.end_time or s.start_time)
+            key=lambda s: (s.active, s.end_time or s.start_time),
+            reverse=True,
         )
 
         res = list[ac.Choice]()
         for s in sorted_streams:
-            if await s.is_alias(curr):
+            if s.is_alias(curr):
                 res.append(ac.Choice(name=s.title, value=s.stream_url))
             if len(res) >= AUTOCOMP_LIM:
                 break
@@ -319,8 +320,8 @@ class Admin(cm.Cog):
             return None
 
         if (
-            s in self.captured_streams[chn_id,]
-            or s.channel_url in [w.targets_url for w in self.registers[chn_id,]]
+            s in self.captured_streams.get((chn_id,), ())
+            or s.channel_url in [w.targets_url for w in self.registers.get((chn_id,), ())]
         ):
             return s
         else:
