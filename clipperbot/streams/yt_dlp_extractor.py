@@ -12,7 +12,13 @@ logger = logging.getLogger(__name__)
 
 # {url: [last_dtime, {err1, err2,}]}
 repeated_errors: dict[str, list] = {}
-def fetch_yt_metadata(url: str, *, no_playlist=True, playlist_items=None):
+def fetch_yt_metadata(
+    url: str,
+    *,
+    no_playlist=True,
+    playlist_items: str | None = None,
+    ignore_no_formats=True,
+):
     """Fetches metadata of url, with `noplaylist`.
     Returns `info_dict`. Can raise `RateLimited`.
     """
@@ -30,7 +36,7 @@ def fetch_yt_metadata(url: str, *, no_playlist=True, playlist_items=None):
         "forcejson": True,
         "no_color": True,
         "cookiefile": "cookies.txt",
-        "ignore_no_formats_error": True,  # no error on upcoming
+        "ignore_no_formats_error": ignore_no_formats,  # no error on upcoming
     }
 
     if "youtube.com/" in url:
