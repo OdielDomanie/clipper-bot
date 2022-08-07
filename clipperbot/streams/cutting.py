@@ -136,6 +136,7 @@ async def concat(
             "\ninpoint " + str(ss),
             "\noutpoint " + str(end),
         ))
+    logger.info(concat)
 
     concat_fpath = f".concat_{random.randrange(10_000_000)}"
     with open(concat_fpath, "w") as f:
