@@ -573,7 +573,7 @@ class EditWindow(dc.ui.View):
         await it.response.edit_message(view=view)
 
     @dc.ui.button(
-        row=1, custom_id="editwindowbb", emoji="⏪", style=dc.ButtonStyle.red
+        row=1, custom_id="editwindowbb", emoji="⏪", style=dc.ButtonStyle.grey
     )
     async def big_back(self, it: dc.Interaction, button: dc.ui.Button):
         assert it.message
@@ -583,7 +583,7 @@ class EditWindow(dc.ui.View):
             await self.edit(it, -10, +10)
 
     @dc.ui.button(
-        row=1, custom_id="editwindowsb", emoji="◀", style=dc.ButtonStyle.red
+        row=1, custom_id="editwindowsb", emoji="◀", style=dc.ButtonStyle.grey
     )
     async def small_back(self, it: dc.Interaction, button: dc.ui.Button):
         assert it.message
@@ -593,7 +593,7 @@ class EditWindow(dc.ui.View):
             await self.edit(it, -1, +1)
 
     @dc.ui.button(
-        row=1, custom_id="editwindowsf", emoji="▶", style=dc.ButtonStyle.red
+        row=1, custom_id="editwindowsf", emoji="▶", style=dc.ButtonStyle.grey
     )
     async def small_forward(self, it: dc.Interaction, button: dc.ui.Button):
         assert it.message
@@ -603,7 +603,7 @@ class EditWindow(dc.ui.View):
             await self.edit(it, +1, -1)
 
     @dc.ui.button(
-        row=1, custom_id="editwindowbf", emoji="⏩", style=dc.ButtonStyle.red
+        row=1, custom_id="editwindowbf", emoji="⏩", style=dc.ButtonStyle.grey
     )
     async def big_forward(self, it: dc.Interaction, button: dc.ui.Button):
         assert it.message
