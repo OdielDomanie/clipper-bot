@@ -496,6 +496,7 @@ class Clipping(cm.Cog):
     async def edit(self, ctx: cm.Context, message_id: str):
         "Edit a posted clip."
         message_id_parsed = message_id.split("/")[-1]  # If a link, the end of a link is the id.
+        message_id_parsed = message_id_parsed.split("-")[-1]
         try:
             msg_id = int(message_id_parsed)
             clip = self.sent_clips[msg_id]
