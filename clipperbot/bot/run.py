@@ -13,7 +13,7 @@ handler.setFormatter(
 )
 
 logger_asyncio = logging.getLogger("asyncio")
-logger_asyncio.setLevel(logging.WARNING)
+logger_asyncio.setLevel(logging.INFO)
 logger_asyncio.addHandler(handler)
 
 logger_clipper = logging.getLogger("clipperbot")
