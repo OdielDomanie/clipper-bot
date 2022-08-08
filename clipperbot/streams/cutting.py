@@ -135,6 +135,7 @@ async def concat(
             "file " + shlex.quote(s_path),
             "\ninpoint " + str(ss),
             "\noutpoint " + str(end),
+            "\n"
         ))
     logger.info(concat)
 
