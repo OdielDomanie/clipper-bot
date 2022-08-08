@@ -31,7 +31,7 @@ async def cut(
     """Cut the video and return the output path.
     out_fpath must not have the file extension.
     """
-    assert ss or sseof
+    assert ss is not None or sseof is not None
     source_name, source_ext = os.path.splitext(source)
 
     if source_ext != ".webm":
