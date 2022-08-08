@@ -63,6 +63,9 @@ class Stream(ABC):
     async def clip_from_start(self, ts: float, duration: float, audio_only=True) -> Clip:
         fpath = await self._clip_ss(ts, duration, audio_only=audio_only)
         size = os.path.getsize(fpath)
+        SIZE_TRESHOLD = 20_000
+        if size < SIZE_TRESHOLD:
+            raise Exception("Clip file probably corrupt.")
         return Clip(
             fpath=fpath,
             size=size,
@@ -83,6 +86,9 @@ class Stream(ABC):
         except CantSseof:
             fpath = await self._clip_ss(ts, duration, audio_only=audio_only)
         size = os.path.getsize(fpath)
+        SIZE_TRESHOLD = 20_000
+        if size < SIZE_TRESHOLD:
+            raise Exception("Clip file probably corrupt.")
         return Clip(
             fpath=fpath,
             size=size,
