@@ -122,7 +122,7 @@ class Admin(cm.Cog):
                     txt += f" {(w.name)}"
                 res.append(txt)
 
-        return ", ".join(res)
+        return "\n".join(res)
 
     async def reg_autocomp(self, it: dc.Interaction, curr: str) -> list[ac.Choice]:
         if len(curr) < 3:
@@ -148,7 +148,7 @@ class Admin(cm.Cog):
         if not channel:
             current = self._registered_chns(ctx.channel.id)
             if current:
-                await ctx.send(f"Currently registered channels: {current}")
+                await ctx.send(f"Currently registered channels:\n{current}")
             else:
                 await ctx.send("No channel registered on this text channel yet.")
             return
@@ -192,7 +192,7 @@ class Admin(cm.Cog):
             text += f"Registered {', '.join('<' + u + '>' for u in new_reg_urls)}."
         already_registered = self._registered_chns(ctx.channel.id, san_urls)
         if already_registered:
-            text += "\nOther registered channels: " + already_registered
+            text += "\nOther registered channels:\n" + already_registered
         await ctx.send(text, suppress_embeds=True)
 
     async def unreg_autocomp(self, it: dc.Interaction, curr: str) -> list[ac.Choice]:
@@ -230,7 +230,9 @@ class Admin(cm.Cog):
             for w in fitting_registers:
                 self.registers.remove((ctx.channel.id,), w)
                 w.stop()
-        await ctx.send(f"Currently registered: {self._registered_chns(ctx.channel.id)}")
+        await ctx.send(
+            f"Remaining registered:\n{self._registered_chns(ctx.channel.id) or 'None'}"
+        )
 
     async def stream_cm_autocomp(
         self, it: dc.Interaction, curr: str
