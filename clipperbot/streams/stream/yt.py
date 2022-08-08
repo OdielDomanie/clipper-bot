@@ -167,6 +167,8 @@ class YTStream(StreamWithActDL):
                 self._past_segments_live.append((ss, t, out_fpath))
             else:
                 self._past_segments_vod.append((ss, t, out_fpath))
+            # A persistent field is mutated
+            all_streams[self.unique_id] = self
 
             return out_fpath, live_status
 
