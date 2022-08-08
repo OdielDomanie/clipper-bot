@@ -198,8 +198,11 @@ class Admin(cm.Cog):
     async def unreg_autocomp(self, it: dc.Interaction, curr: str) -> list[ac.Choice]:
         assert it.channel
         registers = self.registers.get((it.channel.id,), ())
+        one_times = self.onetime_streams.get(it.channel.id, ())
         fitting_registers = [w for w in registers if w.is_alias(curr)]
-        return [ac.Choice(name=w.target, value=w.target) for w in fitting_registers][:25]
+        fitting_one_times = [w for w in one_times if w.is_alias(curr)]
+        choices = fitting_registers + fitting_one_times
+        return [ac.Choice(name=w.target, value=w.target) for w in choices][:25]
 
     @cm.hybrid_command()
     @ac.autocomplete(channel=unreg_autocomp)
