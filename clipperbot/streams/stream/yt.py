@@ -221,13 +221,16 @@ class YTStream(StreamWithActDL):
 
                 og_live_status = self.info_dict["live_status"]
                 if self.info_dict["live_status"] in ("post_live", "is_live"):
+                    ints = plive_ints
                     covered = plive_covered
                     uncovered = plive_uncovered
                 else:
+                    ints = vod_ints
                     covered = vod_covered
                     uncovered = vod_uncovered
 
                 add_s = list[tuple[str, tuple[int, int]]]()
+                logger.debug(ints)
                 for s in uncovered:
                     dl_start = max(s[0]-30,0)
                     start_diff = s[0] - dl_start

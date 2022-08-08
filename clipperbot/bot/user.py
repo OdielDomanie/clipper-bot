@@ -23,7 +23,6 @@ from ..webserver import serveclips
 from . import help_strings
 
 if TYPE_CHECKING:
-    from ..streams.clip import Clip
     from ..streams.stream.base import Stream
     from .admin import Admin as AdminCog
     from .bot import ClipperBot
@@ -42,6 +41,7 @@ class _SentClip:
     channel_id: int
     msg_id: int
     user_id: int
+    stream_uid: object
 
 
 def delete_clip_file(clip: "Clip | _SentClip"):
@@ -88,6 +88,9 @@ class Clipping(cm.Cog):
             assert isinstance(cog, AdminCog)
         self.admin_cog = cog
         self._settings = self.admin_cog.settings
+
+        self.edit_window = EditWindow(self)
+        self.bot.add_view(self.edit_window)
 
     async def stream_autocomp(self, it: dc.Interaction, curr: str) -> list[ac.Choice]:
         "Return streamer names."
@@ -315,6 +318,7 @@ class Clipping(cm.Cog):
         ago_t: float | None,
         duration_t: float,
         audio_only: bool,
+        edit_view = False,
     ):
         assert ctx.guild
         if ts is not None:
@@ -334,14 +338,19 @@ class Clipping(cm.Cog):
                 else:
                     delete_clip_file(new_clip)
 
-            await self.send_clip(ctx, clip)
+            await self.send_clip(
+                ctx, clip, clipped_stream.unique_id, edit_view=edit_view
+            )
 
+        # TODO: Actually raise this
         except DownloadCacheMissing:
             if ctx.interaction:
                 await ctx.interaction.delete_original_message()
                 await ctx.send("The time range is no longer in my cache 😕", ephemeral=True)
 
-    async def send_clip(self, ctx: cm.Context["ClipperBot"], clip: "Clip"):
+    async def send_clip(
+        self, ctx: cm.Context["ClipperBot"], clip: "Clip", suid, edit_view=False
+    ):
         assert ctx.guild
 
         if clip.size <= ctx.guild.filesize_limit:
@@ -350,7 +359,8 @@ class Clipping(cm.Cog):
                 file_name = os.path.basename(clip.fpath)
                 with open(clip.fpath, "rb") as file_clip:
                     msg = await ctx.reply(
-                        file=dc.File(file_clip, file_name)
+                        file=dc.File(file_clip, file_name),
+                        view=self.edit_window if edit_view else None,
                     )
                 delete_clip_file(clip)
                 try:
@@ -367,6 +377,7 @@ class Clipping(cm.Cog):
                     msg_id=msg.id,
                     audio_only=clip.audio_only,
                     user_id=ctx.author.id,
+                    stream_uid=suid,
                 )
                 self.sent_clips[msg.id] = sent_clip
             except dc.HTTPException as httpexception:
@@ -385,32 +396,10 @@ class Clipping(cm.Cog):
                 f"Linking big {clip.fpath} ({clip.size//(1024*1024)}MB)"
                 f" at {(ctx.guild.name, ctx.channel)}")
 
-            # Can use hyperlink markdown in description,
-            # seems closest option to posting video.
-            clip_name = clip.fpath.split('/')[-1]
-            description = (
-                f"[{clip_name}]({serveclips.get_link(clip.fpath)})"
-                f"""\n{deltatime_to_str(
-                        max(clip.from_start, 0),
-                        colon=True,
-                        millisecs=False,
-                        show_hours=True)}"""
-                f"  ({deltatime_to_str(clip.duration, colon=True)})")
-
-            embed = dc.Embed(
-                description=description,
-                colour=dc.Colour.from_rgb(176, 0, 44)
-            )
-            try:
-                thumbnail: bytes = await clip.create_thumbnail()
-            except Exception as e:
-                logger.error(f"Creating thumbnail failed: {e}")
-                msg = await ctx.reply(embed=embed, fpath=clip.fpath)
-            else:
-                # https://stackoverflow.com/questions/61578927/use-a-local-file-as-the-set-image-file-discord-py/61579108#61579108
-                file = dc.File(thumbnail, filename="image.jpg")
-                embed.set_thumbnail(url="attachment://image.jpg")
-                msg = await ctx.reply(file=file, embed=embed, fpath=clip.fpath)
+            send_kwargs = await self.prepare_embed(clip)
+            if edit_view:
+                send_kwargs["view"] = self.edit_window
+            msg = await ctx.reply(**send_kwargs)
 
             try:
                 await msg.add_reaction("❌")
@@ -425,7 +414,8 @@ class Clipping(cm.Cog):
                 channel_id=ctx.channel.id,
                 msg_id=msg.id,
                 audio_only=clip.audio_only,
-                user_id=ctx.author.id
+                user_id=ctx.author.id,
+                stream_uid=suid,
             )
             self.sent_clips[msg.id] = sent_clip
 
@@ -453,6 +443,43 @@ class Clipping(cm.Cog):
             logger.info(f"Removing clip file {f}")
             os.remove(f)
 
+    async def prepare_embed(self, clip: Clip, direct_link=True) -> dict:
+        """Return args for ctx.send/reply, and a _SentClip,
+        without adding to sent_clips dict.
+        """
+        # Can use hyperlink markdown in description,
+        # seems closest option to posting video.
+        # Actually, a direct link to the video without embed also seems to work,
+        # can be considered.
+        if direct_link:  # Does this work consistently? 🤔
+            return {"content": serveclips.get_link(clip.fpath)}
+
+        clip_name = clip.fpath.split('/')[-1]
+        description = (
+            f"[{clip_name}]({serveclips.get_link(clip.fpath)})"
+            f"""\n{deltatime_to_str(
+                    max(clip.from_start, 0),
+                    colon=True,
+                    millisecs=False,
+                    show_hours=True)}"""
+            f"  ({deltatime_to_str(clip.duration, colon=True)})")
+
+        embed = dc.Embed(
+            description=description,
+            colour=dc.Colour.from_rgb(176, 0, 44)
+        )
+        try:
+            thumbnail: bytes = await clip.create_thumbnail()
+        except Exception as e:
+            logger.error(f"Creating thumbnail failed: {e}")
+            kwargs = dict(embed=embed)
+        else:
+            file = dc.File(thumbnail, filename="image.jpg")
+            embed.set_thumbnail(url="attachment://image.jpg")
+            kwargs = dict(file=file, embed=embed)
+        return kwargs
+
+
     # Message deleting
     # INTENTS: reactions
     @cm.Cog.listener()
@@ -463,3 +490,201 @@ class Clipping(cm.Cog):
                 and user.id == clip.user_id
             ):
                 await reaction.message.delete()
+
+    @cm.hybrid_command()
+    @ac.describe(message_id="Message id, message link of the clip.")
+    async def edit(self, ctx: cm.Context, message_id: str):
+        "Edit a posted clip."
+        message_id_parsed = message_id.split("/")[-1]  # If a link, the end of a link is the id.
+        try:
+            msg_id = int(message_id_parsed)
+            clip = self.sent_clips[msg_id]
+        except (ValueError, KeyError):
+            if it := ctx.interaction:
+                await it.delete_original_message()
+                await it.followup.send(
+                    f"{message_id} is not a valid message link or id 😥"
+                    "\nTry clicking on `...` in the top right of the message of the clip.",
+                    ephemeral=True
+                )
+            return
+
+        # Raises errors for: Stage, Forum, Category channels
+        msg = ctx.channel.get_partial_message(msg_id)  # type: ignore
+        if ctx.author.id == clip.user_id:
+            await aio.gather(
+                msg.edit(view=self.edit_window),
+                ctx.send(f"Added edit controls to {msg.jump_url}", ephemeral=True),
+            )
+        else:
+            stream = all_streams[clip.stream_uid]
+            await self.create_n_send_clip(
+                ctx,
+                stream,
+                clip.from_start,
+                None,
+                clip.duration,
+                clip.audio_only,
+                edit_view=True,
+            )
+
+
+class EditWindow(dc.ui.View):
+
+    def __init__(self, cog: "Clipping"):
+        super().__init__(timeout=None)
+        self.cog = cog
+        # {msg_id: mode}
+        self.modes = PersistentDict[int, str](
+            cog.bot.database, "edit_modes", pickling=True
+        )
+        self.edit_tasks = dict[int, set[aio.Task]]()
+
+    @dc.ui.select(row=0, custom_id="editwindowmodeselect", options=[
+        dc.SelectOption(
+            label="Start point",
+            value="start",
+            description="Adjust the starting point of the clip",
+            default=True,
+        ),
+        dc.SelectOption(
+            label="End point",
+            value="end",
+            description="Adjust the ending point of the clip",
+        )
+    ])
+    async def change_mode(self, it: dc.Interaction, select: dc.ui.Select):
+        assert it.message
+        mode = self.modes.get(it.message.id, "start")
+        if mode == select.values[0]:
+            logger.warning(f"Edit mode change, but already same. ({it.message.id})")
+        self.modes[it.message.id] = select.values[0]
+        msg = it.message
+        # msg = await it.original_message()  # This don't work?? "Unknown webhook"
+        view = dc.ui.View.from_message(msg, timeout=None)
+        for c in view.children:
+            if isinstance(c, dc.ui.Select) and c.custom_id == "editwindowmodeselect":
+                for opt in c.options:
+                    if opt.value == select.values[0]:
+                        opt.default = True
+                    else:
+                        opt.default = False
+        view.stop()
+        await it.response.edit_message(view=view)
+
+    @dc.ui.button(
+        row=1, custom_id="editwindowbb", emoji="⏪", style=dc.ButtonStyle.red
+    )
+    async def big_back(self, it: dc.Interaction, button: dc.ui.Button):
+        assert it.message
+        if self.modes.get(it.message.id) == "end":
+            await self.edit(it, 0, -10)
+        else:
+            await self.edit(it, -10, +10)
+
+    @dc.ui.button(
+        row=1, custom_id="editwindowsb", emoji="◀", style=dc.ButtonStyle.red
+    )
+    async def small_back(self, it: dc.Interaction, button: dc.ui.Button):
+        assert it.message
+        if self.modes.get(it.message.id) == "end":
+            await self.edit(it, 0, -1)
+        else:
+            await self.edit(it, -1, +1)
+
+    @dc.ui.button(
+        row=1, custom_id="editwindowsf", emoji="▶", style=dc.ButtonStyle.red
+    )
+    async def small_forward(self, it: dc.Interaction, button: dc.ui.Button):
+        assert it.message
+        if self.modes.get(it.message.id) == "end":
+            await self.edit(it, 0, +1)
+        else:
+            await self.edit(it, +1, -1)
+
+    @dc.ui.button(
+        row=1, custom_id="editwindowbf", emoji="⏩", style=dc.ButtonStyle.red
+    )
+    async def big_forward(self, it: dc.Interaction, button: dc.ui.Button):
+        assert it.message
+        if self.modes.get(it.message.id) == "end":
+            await self.edit(it, 0, +10)
+        else:
+            await self.edit(it, +10, -10)
+
+    async def edit(self, it: dc.Interaction, start_adj: int, end_adj: int):
+        assert it.message
+        while ts := self.edit_tasks.get(it.message.id, ()):
+            ts.pop().cancel()
+        edit_task = aio.create_task(self._do_edit(it, start_adj, end_adj))
+        self.edit_tasks.setdefault(it.message.id, set()).add(edit_task)
+
+    async def _do_edit(self, it: dc.Interaction, start_adj: int, end_adj: int):
+        assert it.message and it.guild and it.channel
+        await it.response.defer(ephemeral=True)
+        msg_id = it.message.id
+        old_clip = self.cog.sent_clips[msg_id]
+        new_ss = old_clip.from_start + start_adj
+        new_t = old_clip.duration - start_adj + end_adj
+        logger.info(f"Doing edit: {new_ss, new_t}")
+        if new_t < 1 or new_ss < 0:
+            return
+        if (
+            start_adj >= 0 and end_adj <= 0 and old_clip.fpath and os.path.isfile(old_clip.fpath)
+        ):  # Can operate only on the clip.
+            dir_name = os.path.dirname(old_clip.fpath)
+            new_fpath = (
+                old_clip.fpath.rsplit(".", 1)[0][:100 + len(dir_name)]
+                + "_" + str(random.randrange(10**6))
+            )
+            new_fpath = await cutting.cut(old_clip.fpath, start_adj, None, new_t, new_fpath)
+            new_clip = Clip(
+                fpath=new_fpath,
+                size=os.path.getsize(new_fpath),
+                duration=new_t,
+                ago=None,
+                from_start=new_ss,
+                audio_only=old_clip.audio_only
+            )
+        else:
+            stream = all_streams[old_clip.stream_uid]
+            if stream.end_time and stream.end_time < (new_ss + new_t):
+                return
+            new_clip = await stream.clip_from_start(new_ss, new_t, old_clip.audio_only)
+
+        msg = it.channel.get_partial_message(msg_id)  # type: ignore
+        if new_clip.size <= it.guild.filesize_limit:
+            # Send as attachment
+            file_name = os.path.basename(new_clip.fpath)
+            with open(new_clip.fpath, "rb") as file_clip:
+                file=dc.File(file_clip, file_name)
+                await msg.edit(content=None, embeds=[], attachments=[file])
+                sent_fpath = None
+        else:
+            kwargs = await self.cog.prepare_embed(new_clip, direct_link=True)
+            kwargs["attachments"] = []
+            kwargs["embeds"] = []
+            try:
+                await it.followup.edit_message(msg_id, **kwargs)
+            except Exception as e:
+                logger.error(e)
+                raise
+            sent_fpath = new_clip.fpath
+
+        try:
+            await msg.add_reaction("❌")
+        except dc.Forbidden:
+            pass
+
+        sent_clip = _SentClip(
+            sent_fpath,
+            duration=new_clip.duration,
+            ago=new_clip.ago,
+            from_start=new_clip.from_start,
+            channel_id=it.channel.id,
+            msg_id=msg.id,
+            audio_only=new_clip.audio_only,
+            user_id=it.user.id,
+            stream_uid=old_clip.stream_uid,
+        )
+        self.cog.sent_clips[msg.id] = sent_clip
