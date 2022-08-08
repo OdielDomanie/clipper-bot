@@ -501,8 +501,7 @@ class Clipping(cm.Cog):
             clip = self.sent_clips[msg_id]
         except (ValueError, KeyError):
             if it := ctx.interaction:
-                await it.delete_original_message()
-                await it.followup.send(
+                await it.response.send_message(
                     f"{message_id} is not a valid message link or id 😥"
                     "\nTry clicking on `...` in the top right of the message of the clip.",
                     ephemeral=True
