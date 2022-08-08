@@ -260,14 +260,14 @@ class Admin(cm.Cog):
         except ValueError as e:
             if ctx.interaction:
                 await ctx.interaction.delete_original_message()
-            await ctx.send(f"{stream_name} is not a valid stream or a live channel 🤨", ephemeral=True)
+            await ctx.send(f"<{stream_name}> is not a valid url 🤨", ephemeral=True)
             return
 
         for ws in self.registers.get((ctx.channel.id,), ()):
             if ws.active_stream and (ws.active_stream.stream_url == san_url or ws.target == san_url):
                 if ctx.interaction:
                     await ctx.interaction.delete_original_message()
-                await ctx.send(f"{san_url} is already enabled on this text channel 🤨", ephemeral=True)
+                await ctx.send(f"<{san_url}> is already enabled on this text channel 🤨", ephemeral=True)
                 return
 
         hook = _AddToPsd("captured_streams", (ctx.channel.id,))
