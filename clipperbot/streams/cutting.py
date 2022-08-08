@@ -164,7 +164,7 @@ async def screenshot(
 ) -> bytes:
     "Creates a png screenshots and returns it as bytes."
 
-    assert ss or sseof
+    assert ss is not None or sseof is not None
 
     if not os.path.isfile(fpath):
         logger.error(
@@ -174,7 +174,7 @@ async def screenshot(
         raise FileNotFoundError
 
     command: list[str] = [
-        ffmpeg, "-n", "hide_banner",
+        ffmpeg, "-n", "-hide_banner",
         "-i", fpath,
         "-vframes", "1",
         "-c:v", "png",
