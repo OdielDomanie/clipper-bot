@@ -53,6 +53,53 @@ async def get_channel_url(chn_name: str) -> Collection[str]:
     return []
 
 
+def san_stream_or_chn_url(stream_name: str) -> str:
+
+    # Is it a youtube channel url?
+    if chn_id := re.search(
+        r"(?<=youtube\.com\/channel\/)([a-zA-Z0-9\-_]{24})(?![a-zA-Z0-9\-_])",
+        stream_name,
+    ):
+        stream_name = chn_id.group()  # set to channel id
+
+    if "." in stream_name and "/" in stream_name:  # a url
+        if url_id := re.search(
+            r"(?<=youtube\.com/watch\?v=)([a-zA-Z0-9\-_]{11})(?![a-zA-Z0-9\-_])",
+            stream_name,
+        ):
+            return "https://www.youtube.com/watch?v=" + url_id.group()
+        elif url_id := re.search(
+            r"(?<=youtu\.be\/)([a-zA-Z0-9\-_]{11})(?![a-zA-Z0-9\-_])",
+            stream_name,
+        ):
+            return "https://www.youtube.com/watch?v=" + url_id.group()
+        elif url_id := re.search(
+            r"(?<=twitch\.tv\/videos\/)([0-9]+)(?![0-9])",
+            stream_name,
+        ):
+            return "https://www.twitch.tv/videos/" + url_id.group()
+
+        elif streamer_name := re.search(
+                r"(?<=twitch\.tv\/)([a-zA-Z0-9\-_]+?)(?![a-zA-Z0-9\-_])",
+                stream_name,
+        ):
+            return "https://www.twitch.tv/" + streamer_name.group()
+        else:
+            raise ValueError
+
+    # either a youtube channel id, or youtube video id
+    else:
+        if len(stream_name) == 24:  # chn id
+            # try to get stream if live
+            base_url = "https://www.youtube.com/channel/" + stream_name
+            return base_url
+
+        elif len(stream_name) == 11:  # video id
+            return "https://www.youtube.com/watch?v=" + stream_name
+        else:
+            raise ValueError
+
+
 async def get_stream_url(stream_name: str) -> tuple[str, dict | None]:
     """Gets a stream url from stream link, channel link or channel name.
     Returns sanitized url and maybe an info_dict.

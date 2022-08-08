@@ -10,7 +10,7 @@ from .. import DATABASE
 from ..persistent_dict import OldPersistentDict, PersistentDict, PersistentSetDict
 from ..streams.stream import all_streams, clean_space
 from ..streams.stream.get_stream import get_stream
-from ..streams.url_finder import get_channel_url, get_stream_url
+from ..streams.url_finder import get_channel_url, san_stream_or_chn_url
 from ..streams.watcher.share import WatcherSharer, create_watch_sharer
 from ..utils import RateLimit, thinking
 from ..vtuber_names import get_all_chns_from_name
@@ -232,45 +232,31 @@ class Admin(cm.Cog):
                 w.stop()
         await ctx.send(f"Currently registered: {self._registered_chns(ctx.channel.id)}")
 
-    async def all_stream_autocomp(self, it: dc.Interaction, curr: str) -> list[ac.Choice]:
-        "Return streamer names."
-        AUTOCOMP_LIM = 10  # Discord's limit is 25, but a lower limit looks better
-        assert it.channel_id
-
-        if len(curr) < 4:
+    async def stream_cm_autocomp(
+        self, it: dc.Interaction, curr: str
+    ) -> list[ac.Choice]:
+        "Auto-complete channel name."
+        if len(curr) < 3:
             return []
-
-        sorted_streams = sorted(
-            all_streams.values(),
-            key=lambda s: (s.active, s.end_time or s.start_time),
-            reverse=True,
-        )
-
-        res = list[ac.Choice]()
-        for s in sorted_streams:
-            if s.is_alias(curr):
-                res.append(ac.Choice(name=s.title, value=s.stream_url))
-            if len(res) >= AUTOCOMP_LIM:
+        result = list[ac.Choice]()
+        for chn_id, urls, name, en_name in get_all_chns_from_name(curr):
+            for url in urls:
+                fm_name = f"{name} ({url})"
+                result.append(ac.Choice(name=fm_name, value=url))
+            if len(result) >= 10:
                 break
-
-        if len(res) < AUTOCOMP_LIM:
-            for chn_id, urls, name, en_name in get_all_chns_from_name(curr):
-                if len(res) >= AUTOCOMP_LIM:
-                    break
-                res.append(ac.Choice(name=name, value=chn_id))
-
-        return res
+        return result
 
     @cm.hybrid_command()
-    @ac.autocomplete(stream_name=all_stream_autocomp)
+    @ac.autocomplete(stream_name=stream_cm_autocomp)
     @ac.describe(
-        stream_name="Stream or channel URL, or stream name."
+        stream_name="Channel name or url, or stream  URL."
     )
     @thinking
     async def stream(self, ctx: cm.Context, stream_name: str):
         "Enable clipping a single stream instead of registering a channel."
         try:
-            san_url, info_dict = await get_stream_url(stream_name)
+            san_url = san_stream_or_chn_url(stream_name)
         except ValueError as e:
             if ctx.interaction:
                 await ctx.interaction.delete_original_message()
