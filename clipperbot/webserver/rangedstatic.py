@@ -1,9 +1,10 @@
+import logging
 import os
-from pathlib import Path
 import urllib.parse
-from starlette.responses import StreamingResponse, Response, PlainTextResponse
-from starlette.requests import Request
+from pathlib import Path
 
+from starlette.requests import Request
+from starlette.responses import PlainTextResponse, Response, StreamingResponse
 
 """
 Stream a file supporting range-requests using starlette
@@ -11,6 +12,9 @@ Inspired from:
 https://gist.github.com/tombulled/712fd8e19ed0618c5f9f7d5f5f543782,
 https://stackoverflow.com/questions/33208849/python-django-streaming-video-mp4-file-using-httpresponse
 """
+
+
+logger = logging.getLogger("webserver.rangedstatic")
 
 
 def ranged(
@@ -79,6 +83,7 @@ def Ranged_Static_Directory(directory):
         file_size = path.stat().st_size
 
         request = Request(scope, receive)
+        logger.info((request, request.method, request.headers))
         content_range = request.headers.get('range')
 
         requests_range = content_range is not None

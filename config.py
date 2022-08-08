@@ -14,8 +14,8 @@ DATABASE = "clipperbot.db"
 CHANNELS_LIST_DB = "channels.db"
 STREAMS_DB = "streams.db"
 
-LOG_LVL = logging.INFO
-UVICORN_LOG_LVL = "INFO"
+LOG_LVL = logging.DEBUG
+UVICORN_LOG_LVL = logging.INFO
 
 FFMPEG = "ffmpeg"
 

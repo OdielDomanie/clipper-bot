@@ -12,6 +12,8 @@ from starlette.middleware import Middleware
 from starlette.middleware.base import BaseHTTPMiddleware
 import uvicorn
 import uvicorn.config
+
+from .ip_obf_log import IPObfuscate
 from .rangedstatic import Ranged_Static_Directory
 
 from .. import (
@@ -20,6 +22,21 @@ from .. import (
     DATABASE,
     URL_PORT,
 )
+
+
+handler = logging.StreamHandler()
+handler.setFormatter(
+    IPObfuscate('%(asctime)s:%(levelname)s:%(name)s: %(message)s')
+)
+
+uvi_logger = logging.getLogger("uvicorn")
+uvi_logger.setLevel(UVICORN_LOG_LVL)
+uvi_logger.addHandler(handler)
+
+webserver_logger = logging.getLogger("webserver")
+webserver_logger.setLevel(UVICORN_LOG_LVL)
+webserver_logger.addHandler(handler)
+
 
 dotenv.load_dotenv()
 
@@ -108,5 +125,5 @@ def run():
     return uvicorn.run(
         app,
         host=CLIPWEBSERVER_IP, port=CLIPWEBSERVER_PORT,
-        log_level=UVICORN_LOG_LVL,
+        log_config=None,
         )
