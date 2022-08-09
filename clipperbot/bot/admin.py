@@ -222,12 +222,12 @@ class Admin(cm.Cog):
         registers = self.registers[ctx.channel.id,]
         fitting_registers = [w for w in registers if w.is_alias(channel)]
         if len(fitting_registers) == 0:
-            onetime = self.onetime_streams[ctx.channel.id]
+            onetime = self.onetime_streams.get(ctx.channel.id, ())
             fitting_onetime = [w for w in onetime if w.is_alias(channel)]
             if len(fitting_onetime) == 0:
                 if ctx.interaction:
                     await ctx.interaction.delete_original_message()
-                await ctx.send(f"{channel} is not any of the registered channels", ephemeral=True)
+                await ctx.send(f"`{channel}` is not any of the registered channels", ephemeral=True)
                 return
             else:
                 for w in fitting_onetime:
@@ -238,7 +238,7 @@ class Admin(cm.Cog):
                 self.registers.remove((ctx.channel.id,), w)
                 w.stop()
         await ctx.send(
-            f"Remaining registered:\n{self._registered_chns(ctx.channel.id) or 'None'}"
+            f"Other registered:\n{self._registered_chns(ctx.channel.id) or 'None'}"
         )
 
     async def stream_cm_autocomp(
