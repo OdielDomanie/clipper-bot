@@ -170,8 +170,9 @@ class Clipping(cm.Cog):
                 )
                 raise
             if duration_t > MAX_DURATION:
+                max_dur_str = deltatime_to_str(MAX_DURATION, colon=True, millisecs=False)
                 await ctx.send(
-                    f"Duration can be {deltatime_to_str(MAX_DURATION)} at max.",
+                    f"Duration can be {max_dur_str} at max.",
                     ephemeral=True,
                 )
                 return
