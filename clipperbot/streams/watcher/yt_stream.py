@@ -106,6 +106,7 @@ class YtStrmWatcher(Poller):
                     await h(s)
                 except Exception as e:
                     logger.exception(e)
+        self.active_stream = s
         if s.online == StreamStatus.PAST:
             logger.info("Watched stream is already offline.")
             self.stream_on.set()
@@ -116,7 +117,6 @@ class YtStrmWatcher(Poller):
         self.stream_off.clear()
         self.stream_on.set()
         assert isinstance(s, StreamWithActDL)
-        self.active_stream = s
         while True:
             if not s.active:
                 logger.info(f"Starting download for: {self.target}")

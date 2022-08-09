@@ -73,7 +73,7 @@ class Poller(Watcher):
                 s = None
             if s:
                 logger.info(f"Stream started: {self.target}")
-                for hs in self.start_hooks.values():
+                for hs in list(self.start_hooks.values()):  # start_hook might be appended in another task
                     for h in hs:
                         try:
                             await h(s)

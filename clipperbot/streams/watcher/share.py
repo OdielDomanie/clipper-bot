@@ -1,6 +1,6 @@
 import asyncio as aio
 import logging
-from typing import Awaitable, Callable, Iterable, Type
+from typing import Callable, Coroutine, Iterable, Type
 
 from ..stream.base import Stream
 from . import Sharer, watchers
@@ -18,7 +18,7 @@ class WatcherSharer:
         self,
         watcher_class: Type[Watcher],
         target: str,
-        stream_hooks: Iterable[Callable[[Stream], Awaitable]],
+        stream_hooks: Iterable[Callable[[Stream], Coroutine]],
     ):
         "`target` is either a san url or a protocol string like `'collabs:<san_url>'`"
         self.target = target
@@ -39,6 +39,11 @@ class WatcherSharer:
             logger.info(f"Sharing watcher for {self.target}")
         self.sharer.start_count += 1
         self.sharer.w.start_hooks[self] = self._stream_hooks
+        # hooks only get called when the stream first goes online,
+        # so we need to call them here
+        if self.sharer.w.active_stream is not None:
+            for h in self._stream_hooks:
+                aio.create_task(h(self.sharer.w.active_stream))
         self.active = True
 
     def stop(self):
@@ -91,7 +96,7 @@ watcher_classes = (
 
 def create_watch_sharer(
     san_url: str,
-    stream_hooks: Iterable[Callable[[Stream], Awaitable]]
+    stream_hooks: Iterable[Callable[[Stream], Coroutine]]
     ) -> WatcherSharer:
     for W in watcher_classes:
         if W.url_is_valid(san_url):
