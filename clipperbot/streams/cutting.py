@@ -131,8 +131,9 @@ async def concat(
     concat = []
     for s_path, intrv in sources:
         ss, end = intrv
+        escaped_s_path = s_path.replace("\\","\\\\").replace("'","\\'").replace(" ","\\ ")
         concat.extend((
-            "file " + shlex.quote(s_path),
+            "file " + escaped_s_path,
             "\ninpoint " + str(ss),
             "\noutpoint " + str(end),
             "\n"
