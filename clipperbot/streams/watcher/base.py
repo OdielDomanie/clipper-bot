@@ -4,8 +4,8 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Awaitable, Callable
 
 from ... import POLL_PERIOD
+from ..exceptions import DownloadForbidden
 from ..stream.base import Stream, StreamStatus, StreamWithActDL
-
 
 if TYPE_CHECKING:
     from .share import WatcherSharer
@@ -65,6 +65,9 @@ class Poller(Watcher):
         while True:
             try:
                 s = await self._poll()
+            except DownloadForbidden as e:
+                logger.info(e)
+                return
             except Exception as e:
                 logger.exception(e)
                 s = None

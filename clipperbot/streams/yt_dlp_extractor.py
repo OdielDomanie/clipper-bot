@@ -4,7 +4,7 @@ import time
 
 import yt_dlp
 
-from .exceptions import RateLimited
+from .exceptions import DownloadForbidden, RateLimited
 
 
 logger = logging.getLogger(__name__)
@@ -76,4 +76,6 @@ def fetch_yt_metadata(
     except Exception as e:
         logger.exception(e)
         return None
+    if info_dict.get("availability") and info_dict.get("availability") != "public":
+        raise DownloadForbidden(info_dict.get("availability"))
     return info_dict

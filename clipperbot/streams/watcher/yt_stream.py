@@ -3,6 +3,7 @@ import logging
 import re
 from typing import TYPE_CHECKING
 
+from ..exceptions import DownloadForbidden
 from ..stream import all_streams
 from ..stream.base import Stream, StreamStatus, StreamWithActDL
 from ..stream.yt import YTStream, yt_stream_uid
@@ -88,6 +89,9 @@ class YtStrmWatcher(Poller):
         while True:
             try:
                 s = await self._poll()
+            except DownloadForbidden as e:
+                logger.info(e)
+                return
             except Exception as e:
                 logger.exception(e)
                 s = None
