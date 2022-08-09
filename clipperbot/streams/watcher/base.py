@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Awaitable, Callable
 
 from ... import POLL_PERIOD
 from ..exceptions import DownloadForbidden
+from ..stream import start_download, stop_download
 from ..stream.base import Stream, StreamStatus, StreamWithActDL
 
 if TYPE_CHECKING:
@@ -84,12 +85,14 @@ class Poller(Watcher):
                 assert isinstance(s, StreamWithActDL)
                 self.active_stream = s
                 while True:
-                    if not s.active:
-                        logger.info(f"Starting download for: {self.target}")
-                        s.start_download()
-                        await s.actdl_on.wait()
-                    await s.actdl_off.wait()
-                    logger.info(f"Stream download ended: {self.target}")
+                    logger.info(f"Starting download for: {self.target}")
+                    start_download(s)
+                    try:
+                        await s.actdl_on.wait()  # There is a race condition here but whatever
+                        await s.actdl_off.wait()
+                    finally:
+                        stop_download(s)
+                        logger.info(f"Stream download ended: {self.target}")
                     # Did it really end?
                     try:
                         if not await self._poll():
@@ -111,7 +114,7 @@ class Poller(Watcher):
 
 
     def start(self):
-        assert not self._watch_task
+        assert not self._watch_task or self._watch_task.done()
         self._watch_task = aio.create_task(self._watch())
 
     def stop(self):

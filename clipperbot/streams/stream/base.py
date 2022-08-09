@@ -129,5 +129,9 @@ class StreamWithActDL(Stream):
     def start_download(self):
         "Start the live download."
 
+    @abstractmethod
+    def stop_download(self):
+        "Stop the live download."
+
     actdl_off: aio.Event
     actdl_on: aio.Event

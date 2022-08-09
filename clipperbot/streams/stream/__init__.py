@@ -1,10 +1,11 @@
 import asyncio as aio
+from collections import Counter
 import logging
 import os
 
 from ... import DOWNLOAD_DIR, MAX_DL_SIZE, STREAMS_DB
 from ...persistent_dict import PersistentDict
-from .base import Stream
+from .base import Stream, StreamWithActDL
 
 
 logger = logging.getLogger(__name__)
@@ -14,6 +15,22 @@ logger = logging.getLogger(__name__)
 all_streams = PersistentDict[object, "Stream"](
     STREAMS_DB, "all_stream",  pickling=True
 )
+
+
+_stream_downloads = Counter()
+
+def start_download(s: StreamWithActDL):
+    "Start the download, or increment the counter if already started."
+    if _stream_downloads[s.unique_id] == 0:
+        s.start_download()
+    _stream_downloads[s.unique_id] += 1
+
+
+def stop_download(s: StreamWithActDL):
+    "Stop the download, or decrement the counter if counter > 1."
+    if _stream_downloads[s.unique_id] == 1:
+        s.stop_download()
+    _stream_downloads[s.unique_id] -= 1
 
 
 async def clean_space():

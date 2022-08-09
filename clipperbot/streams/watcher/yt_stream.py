@@ -4,7 +4,7 @@ import re
 from typing import TYPE_CHECKING
 
 from ..exceptions import DownloadForbidden
-from ..stream import all_streams
+from ..stream import all_streams, start_download, stop_download
 from ..stream.base import Stream, StreamStatus, StreamWithActDL
 from ..stream.yt import YTStream, yt_stream_uid
 from ..yt_dlp_extractor import fetch_yt_metadata
@@ -118,12 +118,14 @@ class YtStrmWatcher(Poller):
         self.stream_on.set()
         assert isinstance(s, StreamWithActDL)
         while True:
-            if not s.active:
-                logger.info(f"Starting download for: {self.target}")
-                s.start_download()
-                await s.actdl_on.wait()
-            await s.actdl_off.wait()
-            logger.info(f"Stream download ended: {self.target}")
+            logger.info(f"Starting download for: {self.target}")
+            start_download(s)
+            try:
+                await s.actdl_on.wait()  # There is a race condition here but whatever
+                await s.actdl_off.wait()
+            finally:
+                stop_download(s)
+                logger.info(f"Stream download ended: {self.target}")
             # Did it really end?
             try:
                 if not await self._poll():
