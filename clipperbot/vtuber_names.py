@@ -16,7 +16,7 @@ hidden_chns = PersistentDict[str, str](
 
 
 def get_from_chn(chn_url: str):
-    for chn_urls, name, en_name in channels_list:
+    for chn_urls, name, en_name in channels_list.values():
         if chn_url in chn_urls:
             return chn_urls, name, en_name
     raise KeyError
