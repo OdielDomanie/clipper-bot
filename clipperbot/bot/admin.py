@@ -13,7 +13,7 @@ from ..streams.stream.get_stream import get_stream
 from ..streams.url_finder import get_channel_url, san_stream_or_chn_url
 from ..streams.watcher.share import WatcherSharer, create_watch_sharer
 from ..utils import RateLimit, thinking
-from ..vtuber_names import get_all_chns_from_name
+from ..vtuber_names import get_all_chns_from_name, get_from_chn
 from . import help_strings
 from .exceptions import StreamNotLegal
 
@@ -202,7 +202,14 @@ class Admin(cm.Cog):
         fitting_registers = [w for w in registers if w.is_alias(curr)]
         fitting_one_times = [w for w in one_times if w.is_alias(curr)]
         choices = fitting_registers + fitting_one_times
-        return [ac.Choice(name=w.target, value=w.target) for w in choices][:25]
+        res = list[ac.Choice]()
+        for w in choices:
+            try:
+                _, name, _ = get_from_chn(w.targets_url)
+                res.append(ac.Choice(name=f"{w.target} ({name})", value=w.target))
+            except KeyError:
+                res.append(ac.Choice(name=w.target, value=w.target))
+        return res[:25]
 
     @cm.hybrid_command()
     @ac.autocomplete(channel=unreg_autocomp)
