@@ -543,13 +543,13 @@ class EditWindow(dc.ui.View):
 
     @dc.ui.select(row=0, custom_id="editwindowmodeselect", options=[
         dc.SelectOption(
-            label="Start point",
+            label="Adjust the start point",
             value="start",
             description="Adjust the starting point of the clip",
             default=True,
         ),
         dc.SelectOption(
-            label="End point",
+            label="Adjust the end point",
             value="end",
             description="Adjust the ending point of the clip",
         )
