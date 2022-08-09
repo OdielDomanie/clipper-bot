@@ -26,7 +26,11 @@ class YtChnWatcher(Poller):
     def __init__(self, target: str):
         self.targets_url = target
         chn_id = target[-24:]
-        _, self.name, self.en_name = channels_list[chn_id]
+        try:
+            _, self.name, self.en_name = channels_list[target]
+        except KeyError:
+            self.name = target.split("/")[-1]
+            self.en_name = None
         super().__init__(target)
 
     async def _poll(self) -> None | Stream:
