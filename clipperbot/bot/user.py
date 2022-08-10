@@ -117,7 +117,7 @@ class Clipping(cm.Cog):
                 break
         return res
 
-    @cm.hybrid_command(name="c-fromstart", enabled=False)
+    @cm.hybrid_command(name="c-timestamp", enabled=False)
     @ac.autocomplete(stream=stream_autocomp)
     @ac.describe(
         time_stamp="Timestamp. (eg. 1:30:00 or 5400)",
@@ -230,14 +230,18 @@ class Clipping(cm.Cog):
         brief="Clip!",
         help=help_strings.clip_help,
     )
+    @ac.describe(
+        seconds_ago=f"How many seconds ago from now is the clip. Default is {DEF_AGO} seconds.",
+        duration=f"Duration of the clip. Defaults to seconds ago, max is {MAX_DURATION} seconds.",
+    )
     async def clip(
         self,
         ctx: cm.Context["ClipperBot"],
-        ago: str = str(DEF_AGO),
+        seconds_ago: str = str(DEF_AGO),
         duration: str | None = None,
     ):
         "!c"
-        await self.do_clip(ctx, ago, duration, audio_only=False)
+        await self.do_clip(ctx, seconds_ago, duration, audio_only=False)
 
     @cm.hybrid_command(
         name="a",
@@ -245,14 +249,18 @@ class Clipping(cm.Cog):
         brief="Clip audio only",
         help=help_strings.audio_help,
     )
+    @ac.describe(
+        seconds_ago=f"How many seconds ago from now is the clip. Default is {DEF_AGO} seconds.",
+        duration=f"Duration of the clip. Defaults to seconds ago, max is {MAX_DURATION} seconds.",
+    )
     async def audio_only(
         self,
         ctx: cm.Context["ClipperBot"],
-        ago: str = str(DEF_AGO),
+        seconds_ago: str = str(DEF_AGO),
         duration: str | None = None,
     ):
         "!a"
-        await self.do_clip(ctx, ago, duration, audio_only=True)
+        await self.do_clip(ctx, seconds_ago, duration, audio_only=True)
 
     async def do_clip(
         self,
