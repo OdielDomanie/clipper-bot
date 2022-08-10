@@ -55,6 +55,26 @@ class _SendEnabledMsg:
         capturing_msgs = PersistentDict[int, int](DATABASE, "capturing_msgs")
         auto_msg_ratelimits: dict[int, RateLimit] = {}  # {channel_id: RateLimit}
         async def __call__(self, stream: "Stream"):
+
+            if isinstance(self.bot, cm.Bot):
+                admin_cog: Admin = self.bot.get_cog("Admin")  # type: ignore
+                blocked_streams = admin_cog.blocked_streams
+
+                try:
+                    g_id = self.txtchn.guild_id  # type: ignore
+                except AttributeError:
+                    g_id = self.txtchn.guild and self.txtchn.guild.id
+                if g_id:
+                    for t, blk_url in blocked_streams.get((g_id,), ()):
+                        if (
+                            (
+                                stream.stream_url == blk_url
+                                or stream.channel_url == blk_url
+                            )
+                            and time.time() < t
+                        ):
+                            return
+
             try:
                 rate_limit = self.auto_msg_ratelimits.setdefault(
                     self.txtchn.id,
@@ -113,7 +133,30 @@ class Admin(cm.Cog):
 
         _SendEnabledMsg.bot = bot
 
-        # WatcherSharers should always be active. We deal with the unpickled one here.
+        ### Migrate old registered channels to new ones
+        # {text_chn : channel_url}
+        self.old_channel_mapping = OldPersistentDict(
+            bot.database, "channels", int, str
+        )
+        for txtchn_id, chn_url in self.old_channel_mapping.items():
+            already_regged = False
+            for w in self.registers.get((txtchn_id,), ()):
+                if chn_url == w.targets_url:
+                    already_regged = True
+                    break
+            if not already_regged:
+                hook1 = _AddToPsd("captured_streams", (txtchn_id,))
+                txtchn = self.bot.get_partial_messageable(txtchn_id)
+                hook2 = _SendEnabledMsg(txtchn)
+                try:
+                    w = create_watch_sharer(chn_url, (hook1, hook2))
+                except ValueError as e:
+                    logger.exception(e)
+                else:
+                    self.registers.add((txtchn_id,), w)
+        ###
+
+        # WatcherSharers should always be active. We deal with the unpickled ones here.
         for ws in self.registers.values():
             for w in ws:
                 w.start()
