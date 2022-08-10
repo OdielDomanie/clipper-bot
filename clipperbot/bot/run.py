@@ -33,7 +33,8 @@ assert DISCORD_TOKEN
 intents = dc.Intents(
             guilds=True,
             guild_messages=True,
-            guild_reactions=True
+            guild_reactions=True,
+            message_content=True,  # Only needed for classic commands
         )
 
 def run():
