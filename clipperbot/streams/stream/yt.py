@@ -118,6 +118,7 @@ class YTStream(StreamWithActDL):
         output = os.path.join(
             self.download_dir, self.title.replace("/","_") + str(self._actdl_counter) +".ts"
         )
+        self._actdl_counter += 1
         logger.debug(f"Initializing YTLiveDownload{(self.stream_url, output)}")
         self._download = YTLiveDownload(self.stream_url, output)
         self.actdl_off.clear()
@@ -127,7 +128,6 @@ class YTStream(StreamWithActDL):
             assert self._download.download_task
             await self._download.download_task
             self._past_actdl.append((time.time(), self._download))
-            self._actdl_counter += 1
         except BaseException as e:
             if isinstance(e, Exception):
                 non_cancel_exception = True

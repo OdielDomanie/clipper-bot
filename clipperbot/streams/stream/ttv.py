@@ -112,6 +112,7 @@ class TTVStream(StreamWithActDL):
 
     async def _download_till_end(self):
         output = os.path.join(self.download_dir, self.title.replace("/","_") + str(self._actdl_counter) +".ts")
+        self._actdl_counter += 1
         self._download = YTLiveDownload(self.stream_url, output)
         self.actdl_off.clear()
         self.actdl_on.set()
@@ -119,7 +120,6 @@ class TTVStream(StreamWithActDL):
         try:
             assert self._download.download_task
             await self._download.download_task
-            self._actdl_counter += 1
         except BaseException as e:
             if isinstance(e, Exception):
                 non_cancel_exception = True
