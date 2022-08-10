@@ -299,7 +299,10 @@ class Clipping(cm.Cog):
                 )
                 return
         else:
-            duration_t = min(ago_t, MAX_DURATION)
+            if ago_t > MAX_DURATION:
+                duration_t = DEF_DURATION
+            else:
+                duration_t = ago_t
 
         streams= self.admin_cog.get_streams(ctx.channel.id)
 
