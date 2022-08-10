@@ -1,5 +1,6 @@
 import asyncio as aio
 import logging
+import time
 from typing import TYPE_CHECKING, Any, Collection, Optional
 
 import discord as dc
@@ -102,6 +103,11 @@ class Admin(cm.Cog):
         # {guild_id: perm}
         self.possible_link_perms = {"false", "true"}
         self.link_perms = OldPersistentDict(bot.database, "link_perms", int, str)
+
+        # {guild_id: (time_until_unban, url)}
+        self.blocked_streams = PersistentSetDict[tuple[int], tuple[float, str]](
+            bot.database, "blocked_streams", 1
+        )
 
         aio.create_task(clean_space())
 
@@ -446,3 +452,16 @@ class Admin(cm.Cog):
             value=role_name
         )
         await self.role_permission(ctx)
+
+    @cm.hybrid_command("block-stream")
+    async def block_stream(self, ctx: cm.Context, stream_url: str):
+        "Forbid clipping this stream for the next 48 hours."
+        assert ctx.guild
+        san_url = san_stream_or_chn_url(stream_url)
+        self.blocked_streams.add((ctx.guild.id,), (time.time() + 2*24*3600, san_url))
+        await ctx.send(
+            "Currently blocked streams:\n"
+            +'\n'.join(
+                f'<{url}>' for t, url in self.blocked_streams[ctx.guild.id,]
+            )
+        )

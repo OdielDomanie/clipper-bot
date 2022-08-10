@@ -5,6 +5,7 @@ import os
 import pickle
 import random
 from dataclasses import dataclass
+import time
 from typing import TYPE_CHECKING, Optional
 
 import discord as dc
@@ -305,6 +306,18 @@ class Clipping(cm.Cog):
                 ephemeral=True,
             )
             return
+
+        for t, s in self.admin_cog.blocked_streams.get((ctx.guild.id,), ()):
+            if (
+                clipped_stream.stream_url == s
+                or clipped_stream.channel_url == s
+                and time.time() < t
+            ):
+                await ctx.send(
+                    "Not allowed to clip this stream :/",
+                    ephemeral=True,
+                )
+                return
 
         await self.create_n_send_clip(
             ctx, clipped_stream, None, ago_t, duration_t, audio_only
@@ -622,9 +635,24 @@ class EditWindow(dc.ui.View):
 
     async def _do_edit(self, it: dc.Interaction, start_adj: int, end_adj: int):
         assert it.message and it.guild and it.channel
-        await it.response.defer(ephemeral=True)
+
         msg_id = it.message.id
         old_clip = self.cog.sent_clips[msg_id]
+        stream = all_streams[old_clip.stream_uid]
+
+        for t, s in self.cog.admin_cog.blocked_streams.get((it.guild.id,), ()):
+            if (
+                stream.stream_url == s
+                or stream.channel_url == s
+                and time.time() < t
+            ):
+                await it.response.send_message(
+                    "Not allowed to clip this stream :/",
+                    ephemeral=True,
+                )
+                return
+
+        await it.response.defer(ephemeral=True)
         new_ss = old_clip.from_start + start_adj
         new_t = old_clip.duration - start_adj + end_adj
         logger.info(f"Doing edit: {new_ss, new_t}")
@@ -648,7 +676,6 @@ class EditWindow(dc.ui.View):
                 audio_only=old_clip.audio_only
             )
         else:
-            stream = all_streams[old_clip.stream_uid]
             if stream.end_time and stream.end_time < (new_ss + new_t):
                 return
             new_clip = await stream.clip_from_start(new_ss, new_t, old_clip.audio_only)
