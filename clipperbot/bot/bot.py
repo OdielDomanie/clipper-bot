@@ -59,6 +59,8 @@ class ClipperBot(cm.Bot):
 
     async def on_ready(self):
         logger.info("Ready.")
+        for g in self.guilds:
+            await self.on_guild_join(g)
 
     async def on_guild_join(self, guild):
         # Intents.guilds
