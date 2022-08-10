@@ -309,8 +309,7 @@ class Clipping(cm.Cog):
 
         for t, s in self.admin_cog.blocked_streams.get((ctx.guild.id,), ()):
             if (
-                clipped_stream.stream_url == s
-                or clipped_stream.channel_url == s
+                (clipped_stream.stream_url == s or clipped_stream.channel_url == s)
                 and time.time() < t
             ):
                 await ctx.send(
@@ -646,8 +645,7 @@ class EditWindow(dc.ui.View):
 
         for t, s in self.cog.admin_cog.blocked_streams.get((it.guild.id,), ()):
             if (
-                stream.stream_url == s
-                or stream.channel_url == s
+                (stream.stream_url == s or stream.channel_url == s)
                 and time.time() < t
             ):
                 await it.response.send_message(
