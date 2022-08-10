@@ -341,7 +341,15 @@ class Clipping(cm.Cog):
         else:
             raise TypeError("Both ts and ago_t can't be None.")
         try:
-            clip: Clip = await clip_f(duration_t, audio_only=audio_only)
+            try:
+                clip: Clip = await clip_f(duration_t, audio_only=audio_only)
+            # When clip cm is run just after stream cm, attr error due to unbound start_time is raised
+            except AttributeError:  # Dirty fix
+                await aio.sleep(5)
+                if ago_t:
+                    ago_t += 5
+                clip = await clip_f(duration_t, audio_only=audio_only)
+
             # If clip size is barely above the file size limit, cut a little and try again.
             if 0 < clip.size - ctx.guild.filesize_limit <= 800_000:
                 new_clip = await clip_f(duration_t - 1)
