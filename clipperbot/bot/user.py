@@ -356,7 +356,6 @@ class Clipping(cm.Cog):
                 ctx, clip, clipped_stream.unique_id, edit_view=edit_view
             )
 
-        # TODO: Actually raise this
         except DownloadCacheMissing:
             if ctx.interaction:
                 await ctx.interaction.delete_original_message()

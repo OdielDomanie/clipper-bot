@@ -7,14 +7,17 @@ import time
 from typing import Any
 
 from ... import CLIP_DIR
-from ...utils import INTRVL, deep_del_key, find_intersections, lock, start_time_from_infodict
+from ...utils import (INTRVL, deep_del_key, find_intersections, lock,
+                      start_time_from_infodict)
 from ...vtuber_names import channels_list
 from .. import cutting
 from ..download.holodex import holodex_req
 from ..download.yt_live import YTLiveDownload
-from ..download.ytdl_past import download_past
+from ..download.ytdl_past import OutOfTimeRange, download_past
+from ..exceptions import DownloadCacheMissing
 from . import all_streams
 from .base import CantSseof, StreamStatus, StreamWithActDL
+
 
 logger = logging.getLogger(__name__)
 
@@ -246,6 +249,8 @@ class YTStream(StreamWithActDL):
                     )
                 return await cutting.concat(*(add_s + covered), out_fpath=out_fpath)
 
+            except OutOfTimeRange as e:
+                raise DownloadCacheMissing() from e
             except Exception:
                 retry = False
                 for past_segments in (self._past_segments_vod, self._past_segments_live):

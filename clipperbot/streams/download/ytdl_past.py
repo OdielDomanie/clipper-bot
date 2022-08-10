@@ -15,6 +15,10 @@ class CantDownload(Exception):
     pass
 
 
+class OutOfTimeRange(CantDownload):
+    pass
+
+
 # Needs a yet unmerged commit to yt_dlp: https://github.com/yt-dlp/yt-dlp/issues/3451
 # Can give this but still download:
 # WARNING: [youtube] Unable to download webpage: HTTP Error 429: Too Many Requests
@@ -60,7 +64,7 @@ def download_past(
             # ydl.params["download_ranges"] = ranges
         logger.info(f"{url}: {live_status}")
         if live_status == "post_live" and ss + t > 4 * 3600:  # yt-dlp issue #1564
-            raise CantDownload()
+            raise OutOfTimeRange()
         # ie_result = ydl.process_ie_result(extracted_info)
         logger.info(f"Download completed: {url, ss, t}")
     return extracted_info, live_status

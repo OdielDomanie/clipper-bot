@@ -7,6 +7,7 @@ import time
 from typing import Any
 
 from ... import CLIP_DIR
+from ...streams.exceptions import DownloadCacheMissing
 from ...utils import (INTRVL, deep_del_key, find_intersections, lock,
                       start_time_from_infodict)
 from ...vtuber_names import channels_list
@@ -15,7 +16,6 @@ from ..download.yt_live import YTLiveDownload
 from ..download.ytdl_past import download_past
 from . import all_streams
 from .base import CantSseof, StreamStatus, StreamWithActDL
-
 
 logger = logging.getLogger(__name__)
 
@@ -206,7 +206,7 @@ class TTVStream(StreamWithActDL):
 
             try:
                 if self.online:
-                    raise ValueError
+                    raise DownloadCacheMissing()
                 else:
 
                     add_s = list[tuple[str, tuple[int, int]]]()
