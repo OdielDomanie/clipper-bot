@@ -531,7 +531,7 @@ class Clipping(cm.Cog):
         if ctx.author.id == clip.user_id:
             await aio.gather(
                 msg.edit(view=self.edit_window),
-                ctx.send(f"Added edit controls to {msg.jump_url}", ephemeral=True),
+                ctx.send(f"⬆ Added edit controls to {msg.jump_url}", ephemeral=True),
             )
         else:
             stream = all_streams[clip.stream_uid]
@@ -555,7 +555,8 @@ class EditWindow(dc.ui.View):
         self.modes = PersistentDict[int, str](
             cog.bot.database, "edit_modes", pickling=True
         )
-        self.edit_tasks = dict[int, set[aio.Task]]()
+        # {msg_id: Lock}
+        self.edit_locks = dict[int, aio.Lock]()
 
     @dc.ui.select(row=0, custom_id="editwindowmodeselect", options=[
         dc.SelectOption(
@@ -631,10 +632,15 @@ class EditWindow(dc.ui.View):
 
     async def edit(self, it: dc.Interaction, start_adj: int, end_adj: int):
         assert it.message
-        while ts := self.edit_tasks.get(it.message.id, ()):
-            ts.pop().cancel()
-        edit_task = aio.create_task(self._do_edit(it, start_adj, end_adj))
-        self.edit_tasks.setdefault(it.message.id, set()).add(edit_task)
+        msg_id = it.message.id
+
+        old_clip = self.cog.sent_clips[msg_id]
+        if it.user.id != old_clip.user_id:
+            await it.response.defer()
+            return
+
+        async with self.edit_locks.setdefault(msg_id, aio.Lock()):
+            await self._do_edit(it, start_adj, end_adj)
 
     async def _do_edit(self, it: dc.Interaction, start_adj: int, end_adj: int):
         assert it.message and it.guild and it.channel
@@ -654,57 +660,69 @@ class EditWindow(dc.ui.View):
                 )
                 return
 
-        await it.response.defer(ephemeral=True)
-        new_ss = old_clip.from_start + start_adj
-        new_t = old_clip.duration - start_adj + end_adj
-        logger.info(f"Doing edit: {new_ss, new_t}")
-        if new_t < 1 or new_ss < 0:
-            return
-        if (
-            start_adj >= 0 and end_adj <= 0 and old_clip.fpath and os.path.isfile(old_clip.fpath)
-        ):  # Can operate only on the clip.
-            dir_name = os.path.dirname(old_clip.fpath)
-            new_fpath = (
-                old_clip.fpath.rsplit(".", 1)[0][:100 + len(dir_name)]
-                + "_" + str(random.randrange(10**6))
-            )
-            new_fpath = await cutting.cut(old_clip.fpath, start_adj, None, new_t, new_fpath)
-            new_clip = Clip(
-                fpath=new_fpath,
-                size=os.path.getsize(new_fpath),
-                duration=new_t,
-                ago=None,
-                from_start=new_ss,
-                audio_only=old_clip.audio_only
-            )
-        else:
-            if stream.end_time and stream.end_time < (new_ss + new_t):
-                return
-            new_clip = await stream.clip_from_start(new_ss, new_t, old_clip.audio_only)
-
-        msg = it.channel.get_partial_message(msg_id)  # type: ignore
-        if new_clip.size <= it.guild.filesize_limit:
-            # Send as attachment
-            file_name = os.path.basename(new_clip.fpath)
-            with open(new_clip.fpath, "rb") as file_clip:
-                file=dc.File(file_clip, file_name)
-                await msg.edit(content=None, embeds=[], attachments=[file])
-                sent_fpath = None
-        else:
-            kwargs = await self.cog.prepare_embed(new_clip, direct_link=True)
-            kwargs["attachments"] = []
-            kwargs["embeds"] = []
-            try:
-                await it.followup.edit_message(msg_id, **kwargs)
-            except Exception as e:
-                logger.error(e)
-                raise
-            sent_fpath = new_clip.fpath
-
+        og_view = dc.ui.View.from_message(it.message, timeout=None)
+        grey_view = dc.ui.View.from_message(it.message, timeout=None)
+        for c in grey_view.children:
+            if isinstance(c, (dc.ui.Select, dc.ui.Button)):
+                c.disabled = True
+        grey_view.stop()
+        og_view.stop()
+        await it.response.edit_message(view=grey_view)
+        is_grey = True
         try:
-            await msg.add_reaction("❌")
-        except dc.Forbidden:
-            pass
+            new_ss = old_clip.from_start + start_adj
+            new_t = old_clip.duration - start_adj + end_adj
+            logger.info(f"Doing edit: {new_ss, new_t}")
+            if new_t < 1 or new_ss < 0:
+                return
+            if (
+                start_adj >= 0 and end_adj <= 0 and old_clip.fpath and os.path.isfile(old_clip.fpath)
+            ):  # Can operate only on the clip.
+                dir_name = os.path.dirname(old_clip.fpath)
+                new_fpath = (
+                    old_clip.fpath.rsplit(".", 1)[0][:100 + len(dir_name)]
+                    + "_" + str(random.randrange(10**6))
+                )
+                new_fpath = await cutting.cut(old_clip.fpath, start_adj, None, new_t, new_fpath)
+                new_clip = Clip(
+                    fpath=new_fpath,
+                    size=os.path.getsize(new_fpath),
+                    duration=new_t,
+                    ago=None,
+                    from_start=new_ss,
+                    audio_only=old_clip.audio_only
+                )
+            else:
+                if stream.end_time and stream.end_time < (new_ss + new_t):
+                    return
+                new_clip = await stream.clip_from_start(new_ss, new_t, old_clip.audio_only)
+
+            msg = it.channel.get_partial_message(msg_id)  # type: ignore
+            if new_clip.size <= it.guild.filesize_limit:
+                # Send as attachment
+                file_name = os.path.basename(new_clip.fpath)
+                with open(new_clip.fpath, "rb") as file_clip:
+                    file=dc.File(file_clip, file_name)
+                    await msg.edit(
+                        content=None, embeds=[], attachments=[file], view=og_view
+                    )
+                    is_grey = False
+                    sent_fpath = None
+            else:
+                kwargs = await self.cog.prepare_embed(new_clip, direct_link=True)
+                kwargs["attachments"] = []
+                kwargs["embeds"] = []
+                kwargs["view"] = og_view
+                try:
+                    await it.followup.edit_message(msg_id, **kwargs)
+                    is_grey = False
+                except Exception as e:
+                    logger.error(e)
+                    raise
+                sent_fpath = new_clip.fpath
+        finally:
+            if is_grey:
+                await it.followup.edit_message(msg_id, view=og_view)
 
         sent_clip = _SentClip(
             sent_fpath,
