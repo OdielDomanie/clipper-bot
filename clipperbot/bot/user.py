@@ -360,7 +360,12 @@ class Clipping(cm.Cog):
         except DownloadCacheMissing:
             if ctx.interaction:
                 await ctx.interaction.delete_original_message()
-                await ctx.send("The time range is no longer in my cache 😕", ephemeral=True)
+                await ctx.send(
+                    "The time range is no longer in my cache 😕"
+                    "\nTry clipping a different timestamp,"
+                    " or try again when the VOD is processed.",
+                    ephemeral=True
+                )
 
     async def send_clip(
         self, ctx: cm.Context["ClipperBot"], clip: "Clip", suid, edit_view=False
