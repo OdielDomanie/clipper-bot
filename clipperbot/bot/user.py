@@ -232,7 +232,7 @@ class Clipping(cm.Cog):
     )
     @ac.describe(
         seconds_ago=f"How many seconds ago from now is the clip. Default is {DEF_AGO} seconds.",
-        duration=f"Duration of the clip. Defaults to seconds ago, max is {MAX_DURATION} seconds.",
+        duration=f"Duration of the clip. Defaults to seconds ago.",
     )
     async def clip(
         self,
@@ -251,7 +251,7 @@ class Clipping(cm.Cog):
     )
     @ac.describe(
         seconds_ago=f"How many seconds ago from now is the clip. Default is {DEF_AGO} seconds.",
-        duration=f"Duration of the clip. Defaults to seconds ago, max is {MAX_DURATION} seconds.",
+        duration=f"Duration of the clip. Defaults to seconds ago.",
     )
     async def audio_only(
         self,
