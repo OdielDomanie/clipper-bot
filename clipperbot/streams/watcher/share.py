@@ -98,6 +98,7 @@ def create_watch_sharer(
     san_url: str,
     stream_hooks: Iterable[Callable[[Stream], Coroutine]]
     ) -> WatcherSharer:
+    "Can raise ValueError."
     for W in watcher_classes:
         if W.url_is_valid(san_url):
             return WatcherSharer(W, san_url, stream_hooks)
