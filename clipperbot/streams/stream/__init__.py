@@ -23,13 +23,16 @@ def start_download(s: StreamWithActDL):
     "Start the download, or increment the counter if already started."
     if _stream_downloads[s.unique_id] == 0:
         s.start_download()
+    else:
+        logger.info(f"Sharing download for {s.stream_url}")
     _stream_downloads[s.unique_id] += 1
 
 
 def stop_download(s: StreamWithActDL):
     "Stop the download, or decrement the counter if counter > 1."
     if _stream_downloads[s.unique_id] == 1:
-        s.stop_download()
+        if s.active:
+            s.stop_download()
     _stream_downloads[s.unique_id] -= 1
 
 
