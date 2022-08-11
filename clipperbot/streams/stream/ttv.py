@@ -177,6 +177,10 @@ class TTVStream(StreamWithActDL):
         return None
 
     async def _download_past(self, ss: int, t: int) -> str:
+        raise DownloadCacheMissing()
+        # Downloading a part of the VOD doesn't work:
+        # 1) Slighly wrong timing can download the whole VOD
+        # 2) Granularity is as big as bigger than a minute
         async with self._pastdl_lock:
             if not self.online and not self.is_vod(self.stream_url):
                 logger.warning(f"{self.online} but {self.stream_url}")
