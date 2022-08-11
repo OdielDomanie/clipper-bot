@@ -386,7 +386,7 @@ class Admin(cm.Cog):
         perm_str = self.link_perms.get(guild_id, "false")
         return perm_str == "true"
 
-    @cm.hybrid_command()
+    @cm.hybrid_command(name="allow-links", aliases=["allow_links"])
     async def allow_links(self, ctx: cm.Context, allow: bool):
         "Whether the bot can post big clips as links, instead of the \"cannot post as attachment\" message."
         assert ctx.guild
