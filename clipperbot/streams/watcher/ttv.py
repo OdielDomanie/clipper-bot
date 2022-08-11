@@ -54,7 +54,7 @@ class TtvWatcher(Poller):
                 return None
 
             stream_url = metadata_dict["webpage_url"]
-            stream_title = metadata_dict["description"]
+            stream_title = metadata_dict.get("description") or metadata_dict.get("fulltitle")
 
             stream = TTVStream(
                 stream_url, stream_title, StreamStatus.ONLINE, metadata_dict

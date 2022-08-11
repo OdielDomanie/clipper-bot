@@ -14,14 +14,31 @@ from ...vtuber_names import channels_list
 from .. import cutting
 from ..download.yt_live import YTLiveDownload
 from ..download.ytdl_past import download_past
+from ..yt_dlp_extractor import fetch_yt_metadata
 from . import all_streams
 from .base import CantSseof, StreamStatus, StreamWithActDL
+
 
 logger = logging.getLogger(__name__)
 
 
 def ttv_stream_uid(info_dict: dict):
     return "ttv", info_dict["uploader_id"], info_dict["timestamp"]
+
+
+async def find_vod(chn_url: str, timestamp: int) -> dict:
+    "Return info_dict, or raise ValueError if not found."
+    info_dict = await aio.to_thread(
+        fetch_yt_metadata,
+        chn_url + "/videos",
+        no_playlist=False,
+        playlist_items="0,1,2",
+    )
+    assert info_dict and info_dict.get("entries")
+    for entry in info_dict["entries"]:
+        if entry["timestamp"] == timestamp:
+            return entry
+    raise ValueError()
 
 
 class TTVStream(StreamWithActDL):
@@ -38,6 +55,15 @@ class TTVStream(StreamWithActDL):
                 url
             )
         )
+
+    @staticmethod
+    def is_vod(url: str):
+        if re.match(r"^https:\/\/www\.twitch\.tv\/[a-zA-Z0-9\-_]+$", url):
+            return False
+        elif re.match(r"^https://www\.twitch\.tv\/videos\/[0-9]+$", url):
+            return True
+        else:
+            raise ValueError()
 
     def __init__(self, stream_url, title: str, online: StreamStatus, info_dict: dict):
         self.title = title
@@ -148,12 +174,14 @@ class TTVStream(StreamWithActDL):
 
     async def _download_past(self, ss: int, t: int) -> str:
         async with self._pastdl_lock:
-            if self.online == StreamStatus.PAST or self.online is None:
-                raise ValueError
+            if self.online and self.is_vod(self.stream_url):
+                logger.warning(f"{self.online} but {self.stream_url}")
+                self.info_dict = await find_vod(self.channel_url, self.start_time)
+                all_streams[self.unique_id] = self
+
             out_fpath = os.path.join(self.download_dir, self.title.replace("/","_") + f"{ss}_{t}.mp4")
-            rt = await aio.to_thread(download_past, self.stream_url, out_fpath, ss, t)
-            if rt:
-                raise Exception(f"download_past{(self.stream_url, out_fpath, ss, t)} returned {rt}")
+            info_dict, live_status = await aio.to_thread(download_past, self.stream_url, out_fpath, ss, t)
+            self.info_dict = info_dict
             self._past_segments_vod.append((ss, t, out_fpath))
             all_streams[self.unique_id] = self
             return out_fpath
