@@ -127,7 +127,7 @@ class TTVStream(StreamWithActDL):
 
     def start_download(self):
         "Start the live download."
-        assert not self._download_task
+        assert not self._download_task or self._download_task.done()
         self._download_task = aio.create_task(self._download_till_end())
         if not self._start_time:
             # Will be way off if started late. If started late, the info_dict must be
