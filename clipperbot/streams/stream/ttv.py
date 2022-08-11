@@ -157,6 +157,8 @@ class TTVStream(StreamWithActDL):
                 self._past_actdl.append((time.time(), self._download))
             self._download = None
             all_streams[self.unique_id] = self
+            logger.debug(f"YTLiveDownload{(self.stream_url, output)} ended.")
+            self.actdl_on.clear()
             self.actdl_off.set()
 
     def _get_download_loc_ts(self, ts: float, duration:float) -> tuple[str, float] | None:
