@@ -304,6 +304,8 @@ class Clipping(cm.Cog):
             else:
                 duration_t = ago_t
 
+        ago_t += 2
+
         streams= self.admin_cog.get_streams(ctx.channel.id)
 
         try:
