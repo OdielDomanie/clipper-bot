@@ -88,7 +88,9 @@ class Poller(Watcher):
                     logger.info(f"Starting download for: {self.target}")
                     start_download(s)
                     try:
+                        logger.debug("Waiting for download to start.")
                         await s.actdl_on.wait()  # There is a race condition here but whatever
+                        logger.debug(f"Waiting for download to end for {self.target}")
                         await s.actdl_off.wait()
                     finally:
                         stop_download(s)
