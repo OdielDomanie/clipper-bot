@@ -166,6 +166,9 @@ class YTStream(StreamWithActDL):
                 info_dict= use_infodict and self.info_dict
             )
             self.info_dict = info_dict
+            if live_status != "is_live" and self.online == StreamStatus.ONLINE:
+                logger.error(f"live_status: {live_status} but stream_status={self.online}")
+                self.online = StreamStatus.PAST
             if live_status in ("post_live", "is_live"):
                 self._past_segments_live.append((ss, t, out_fpath))
             else:
