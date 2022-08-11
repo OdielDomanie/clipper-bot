@@ -684,7 +684,7 @@ class EditWindow(dc.ui.View):
         og_view = dc.ui.View.from_message(it.message, timeout=None)
         grey_view = dc.ui.View.from_message(it.message, timeout=None)
         for c in grey_view.children:
-            if isinstance(c, (dc.ui.Select, dc.ui.Button)):
+            if isinstance(c, dc.ui.Button):
                 c.disabled = True
         grey_view.stop()
         og_view.stop()
