@@ -178,10 +178,14 @@ class TTVStream(StreamWithActDL):
 
     async def _download_past(self, ss: int, t: int) -> str:
         async with self._pastdl_lock:
-            if self.online and self.is_vod(self.stream_url):
+            if not self.online and not self.is_vod(self.stream_url):
                 logger.warning(f"{self.online} but {self.stream_url}")
                 self.info_dict = await find_vod(self.channel_url, self.start_time)
-                all_streams[self.unique_id] = self
+
+            if not self.info_dict.get("is_live"):
+                self.online = StreamStatus.PAST
+            if self.online:
+                raise DownloadCacheMissing()
 
             out_fpath = os.path.join(self.download_dir, self.title.replace("/","_") + f"{ss}_{t}.mp4")
             info_dict, live_status = await aio.to_thread(download_past, self.stream_url, out_fpath, ss, t)
@@ -237,34 +241,28 @@ class TTVStream(StreamWithActDL):
             vod_covered, vod_uncovered = find_intersections(clip_intrv, vod_ints)
 
             try:
-                if self.online:
-                    raise DownloadCacheMissing()
-                else:
-
-                    add_s = list[tuple[str, tuple[int, int]]]()
-                    for s in vod_uncovered:
-                        dl_start = max(s[0]-30,0)
-                        start_diff = s[0] - dl_start
-                        dl_end = min(s[1], int(self.end_time)) if self.end_time else s[1]
-                        end_diff = s[1] - dl_end
-                        o = await self._download_past(dl_start, dl_end-dl_start)
-                        add_s.append(
-                            (o, (start_diff, end_diff))
-                        )
-                    return await cutting.concat(*(add_s + vod_covered), out_fpath=out_fpath)
+                add_s = list[tuple[str, tuple[int, int]]]()
+                for s in vod_uncovered:
+                    dl_start = max(s[0]-30,0)
+                    start_diff = s[0] - dl_start
+                    dl_end = min(s[1]+30, int(self.end_time or time.time()-self.start_time))
+                    end_diff = s[1] - dl_end
+                    o = await self._download_past(dl_start, dl_end-dl_start)
+                    add_s.append(
+                        (o, (start_diff, (dl_end-dl_start)+end_diff))
+                    )
+                return await cutting.concat(*(add_s + vod_covered), out_fpath=out_fpath)
             except Exception:
                 for fpath, i in vod_ints:
                     if not os.path.isfile(fpath):
                         if try_no < 2:
                             logger.error(f"File {fpath} not found, trying clip again.")
                             vod_ints.remove((fpath, i))
-                            continue
-                        else:
-                            raise
+                if try_no >= 2:
+                    raise
         assert False
 
     def is_alias(self, name: str) -> bool:
-        channel_id = self.info_dict["channel_url"].split("/")[-1]
         return (
             name.lower() in self.title.lower()
             or name in self.stream_url
