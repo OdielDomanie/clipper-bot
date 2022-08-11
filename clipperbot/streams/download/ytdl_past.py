@@ -40,7 +40,7 @@ def download_past(
     # but being fragment-exact is important.
     live_from_start_seq = f"{int(ss)}-{int(ss+t)}"
 
-    with yt_dlp.YoutubeDL({
+    params = {
         "download_ranges": ranges,  # using this with live_from_start break it
         "live_from_start":True,
         "live_from_start_seq": live_from_start_seq,
@@ -48,7 +48,12 @@ def download_past(
         "outtmpl": output,
         "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]",
         "noprogress": True,
-    }) as ydl:
+    }
+    # The "bestvideo" formatting option doesn't work with twitch vods.
+    if url.startswith("https://www.twitch.tv/videos/"):
+        del params["format"]
+
+    with yt_dlp.YoutubeDL(params) as ydl:
         logger.info(f"Downloading past of {url}, {ss, t}")
         # if info_dict:
         #     extracted_info = info_dict
