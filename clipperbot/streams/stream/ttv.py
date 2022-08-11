@@ -23,7 +23,9 @@ logger = logging.getLogger(__name__)
 
 
 def ttv_stream_uid(info_dict: dict):
-    return "ttv", info_dict["uploader_id"], info_dict["timestamp"]
+    # The vod timestamp and live timestamp do not match exactly
+    # (one example showed 7 seconds of diff, so round it to the nearest 100 sec)
+    return "ttv", info_dict["uploader_id"], round(info_dict["timestamp"], -2)
 
 
 async def find_vod(chn_url: str, timestamp: int) -> dict:
@@ -32,11 +34,11 @@ async def find_vod(chn_url: str, timestamp: int) -> dict:
         fetch_yt_metadata,
         chn_url + "/videos",
         no_playlist=False,
-        playlist_items="0,1,2",
+        playlist_items="0,1,2,3",
     )
     assert info_dict and info_dict.get("entries")
     for entry in info_dict["entries"]:
-        if entry["timestamp"] == timestamp:
+        if round(entry["timestamp"], -2) == round(timestamp, -2):
             return entry
     raise ValueError()
 
