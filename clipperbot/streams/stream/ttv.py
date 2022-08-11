@@ -345,6 +345,8 @@ class TTVStream(StreamWithActDL):
             "_pastdl_lock",
             "_clip_lock",
             "_online",
+            "actdl_on",
+            "actdl_off",
         )
         for key in stateful:
             del state[key]
@@ -359,3 +361,5 @@ class TTVStream(StreamWithActDL):
         self._clip_lock = aio.Lock()
         self._online = None
         self.actdl_on = aio.Event()
+        self.actdl_off = aio.Event()
+        self.actdl_off.set()
