@@ -48,10 +48,13 @@ def download_past(
         "outtmpl": output,
         "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]",
         "noprogress": True,
+        "cookiefile": "cookies.txt",
     }
     # The "bestvideo" formatting option doesn't work with twitch vods.
     if url.startswith("https://www.twitch.tv/videos/"):
         del params["format"]
+    if "youtube.com/" in url:
+        params["referer"] = "https://www.youtube.com/feed/subscriptions"
 
     with yt_dlp.YoutubeDL(params) as ydl:
         logger.info(f"Downloading past of {url}, {ss, t}")
