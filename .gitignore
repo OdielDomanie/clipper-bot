@@ -15,3 +15,5 @@ tests/**
 .concat*
 *.log
 *.mp4.part
+favicon.ico
+*.sh
