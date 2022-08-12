@@ -270,12 +270,11 @@ class TTVStream(StreamWithActDL):
         return (
             name.lower() in self.title.lower()
             or name in self.stream_url
-            or name in self.info_dict.get("channel_url", "")
-            or name in self.info_dict.get("uploader_id", "")
+            or name in self.channel_url
             or any(
                 name in name_ or (en_name and name in en_name)
                 for chn_urls, name_, en_name in channels_list.values()
-                if self.info_dict["channel_url"] in chn_urls
+                if self.channel_url in chn_urls
             )
         )
 

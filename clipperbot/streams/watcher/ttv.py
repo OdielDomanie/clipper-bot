@@ -3,7 +3,7 @@ import logging
 import re
 from typing import TYPE_CHECKING
 
-from ...vtuber_names import channels_list
+from ...vtuber_names import get_from_chn
 from ..stream import all_streams
 from ..stream.base import Stream, StreamStatus
 from ..stream.ttv import TTVStream, ttv_stream_uid
@@ -26,7 +26,7 @@ class TtvWatcher(Poller):
     def __init__(self, target: str):
         self.targets_url = target
         try:
-            _, self.name, self.en_name = channels_list[target]
+            _, self.name, self.en_name = get_from_chn(target)
         except KeyError:
             self.name = target.split("/")[-1]
             self.en_name = None
@@ -71,7 +71,7 @@ class TtvWatcher(Poller):
     def is_alias(self, name: str) -> bool:
         return (
             name in self.target
-            or name in self.name
+            or name in (self.name or "")
             or (self.en_name is not None and name in self.en_name)
         )
 

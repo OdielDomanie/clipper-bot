@@ -27,7 +27,7 @@ class YtChnWatcher(Poller):
         self.targets_url = target
         chn_id = target[-24:]
         try:
-            _, self.name, self.en_name = channels_list[target]
+            _, self.name, self.en_name = channels_list[chn_id]
         except KeyError:
             self.name = target.split("/")[-1]
             self.en_name = None
@@ -73,7 +73,7 @@ class YtChnWatcher(Poller):
     def is_alias(self, name: str) -> bool:
         return (
             name in self.target
-            or name in self.name
+            or name in (self.name or "")
             or (self.en_name is not None and name in self.en_name)
         )
 

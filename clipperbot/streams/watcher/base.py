@@ -27,7 +27,7 @@ class Watcher(ABC):
 
     start_hooks: dict["WatcherSharer", tuple[Callable[[Stream], Awaitable], ...]]
     targets_url: str
-    name: str
+    name: str | None
     active_stream: Stream | None
     stream_on: aio.Event
     stream_off: aio.Event

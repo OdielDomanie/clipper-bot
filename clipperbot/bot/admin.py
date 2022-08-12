@@ -164,11 +164,18 @@ class Admin(cm.Cog):
     def _registered_chns(self, chn_id: int, exclude_url=()) -> str:
         "Formatted string of list of registered channels."
         res = []
-        for w in self.registers.get((chn_id,), set()).union(self.onetime_streams.get(chn_id, set())):
+        for w in self.registers.get((chn_id,), set()):
             if w.target not in exclude_url:
                 txt = '<' + w.targets_url + '>'
                 if w.name:
                     txt += f" {(w.name)}"
+                res.append(txt)
+        for w in self.onetime_streams.get(chn_id, set()):
+            if w.target not in exclude_url:
+                txt = '<' + w.targets_url + '>'
+                if w.name:
+                    txt += f" {(w.name)}"
+                txt += " (stream)"
                 res.append(txt)
 
         return "\n".join(res)
