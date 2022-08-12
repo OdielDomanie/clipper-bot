@@ -5,6 +5,7 @@ import os.path
 import random
 import shlex
 import sys
+import time
 from asyncio import subprocess as sp
 from typing import Iterable
 
@@ -85,6 +86,7 @@ async def cut(
 
 async def _clip_process(command: Iterable[str], out_fpath: str) -> str:
     logger.info(f"Clip cmd: {shlex.join(command)}")
+    t_start = time.perf_counter()
     process = await sp.create_subprocess_exec(
             *command,
             stdout=sp.PIPE,
@@ -97,6 +99,9 @@ async def _clip_process(command: Iterable[str], out_fpath: str) -> str:
         encoding = sys.stdout.encoding if sys.stdout.encoding else "utf-8"
 
         ffmpeg_out, _ = await process.communicate()
+        t_end = time.perf_counter()
+        logger.info(f"Took {t_end-t_start:.3f}")
+
         ffmpeg_logger.debug(str(ffmpeg_out, encoding))
 
         if (return_code := await process.wait()) == 0:
