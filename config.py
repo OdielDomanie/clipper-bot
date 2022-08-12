@@ -2,7 +2,7 @@ import logging
 
 
 DEF_AGO = 10
-DEF_DURATION = 10  # Only used for from_start
+DEF_DURATION = 10
 MAX_DURATION = 300
 DEFAULT_PREFIX = "__"
 
