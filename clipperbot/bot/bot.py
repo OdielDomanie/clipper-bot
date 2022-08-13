@@ -3,12 +3,10 @@ import logging
 import discord as dc
 from discord.ext import commands as cm
 
-import typing
-
 from ..utils import manserv_or_owner
 
 from .help_strings import bot_description
-from ..persistent_dict import OldPersistentDict, PersistentDict, PersistentSetDict
+from ..persistent_dict import OldPersistentDict, OldPersistentSetDict, PersistentDict
 
 from .user import Clipping as ClippingCog
 from .admin import Admin as AdminCog
@@ -38,11 +36,11 @@ class ClipperBot(cm.Bot):
         self.before_invoke(self._log_command)
 
         # {guild.id, command/category/alias name : role}
-        self.command_role_perms = PersistentSetDict(
+        self.command_role_perms = OldPersistentSetDict(
             database, "command_role", 2
         )
         # {guild.id, command/category/alias name : txt_chn.id}
-        self.command_txtchn_perms = PersistentSetDict(
+        self.command_txtchn_perms = OldPersistentSetDict(
             database, "command_txtchn", 2
         )
         self.add_check(self.check_perms)
