@@ -688,8 +688,14 @@ class EditWindow(dc.ui.View):
                 c.disabled = True
         grey_view.stop()
         og_view.stop()
-        await it.response.edit_message(view=grey_view)
-        is_grey = True
+        async def grey_in_future():
+            await  aio.sleep(3)
+            nonlocal is_grey
+            is_grey = True
+            await it.followup.edit_message(msg_id, view=grey_view)
+        gf_t = aio.create_task(grey_in_future())
+        is_grey = False
+        await it.response.defer()
         try:
             new_ss = old_clip.from_start + start_adj
             new_t = old_clip.duration - start_adj + end_adj
@@ -724,6 +730,10 @@ class EditWindow(dc.ui.View):
                 file_name = os.path.basename(new_clip.fpath)
                 with open(new_clip.fpath, "rb") as file_clip:
                     file=dc.File(file_clip, file_name)
+
+                    gf_t.cancel("gf_t interrupted")
+                    await aio.gather(gf_t, return_exceptions=True)
+
                     await msg.edit(
                         content=None, embeds=[], attachments=[file], view=og_view
                     )
@@ -735,6 +745,9 @@ class EditWindow(dc.ui.View):
                 kwargs["embeds"] = []
                 kwargs["view"] = og_view
                 try:
+                    gf_t.cancel("gf_t interrupted")
+                    await aio.gather(gf_t, return_exceptions=True)
+
                     await it.followup.edit_message(msg_id, **kwargs)
                     is_grey = False
                 except Exception as e:
@@ -742,6 +755,8 @@ class EditWindow(dc.ui.View):
                     raise
                 sent_fpath = new_clip.fpath
         finally:
+            gf_t.cancel("gf_t interrupted")
+            await aio.gather(gf_t, return_exceptions=True)
             if is_grey:
                 await it.followup.edit_message(msg_id, view=og_view)
 
