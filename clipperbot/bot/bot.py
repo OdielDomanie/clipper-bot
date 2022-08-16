@@ -47,10 +47,13 @@ class ClipperBot(cm.Bot):
 
     async def setup_hook(self):
         await self.add_cog(AdminCog(self))
-        await self.add_cog(ClippingCog(self))
 
         for c in self.tree.walk_commands():
             c.default_permissions = dc.Permissions(0)
+
+        await self.add_cog(ClippingCog(self))
+
+        for c in self.tree.walk_commands():
             c.guild_only = True
 
         await self.tree.sync()
