@@ -1,4 +1,5 @@
 import logging
+import time
 from typing import Iterable, TypedDict
 
 import yt_dlp
@@ -40,6 +41,8 @@ def download_past(
     # but being fragment-exact is important.
     live_from_start_seq = f"{int(ss)}-{int(ss+t)}"
 
+    t_start = time.perf_counter()
+
     params = {
         "download_ranges": ranges,  # using this with live_from_start break it
         "live_from_start":True,
@@ -75,4 +78,5 @@ def download_past(
             raise OutOfTimeRange()
         # ie_result = ydl.process_ie_result(extracted_info)
         logger.info(f"Download completed: {url, ss, t}")
+        logger.info(f"Took {time.perf_counter() - t_start:.3f} s")
     return extracted_info, live_status

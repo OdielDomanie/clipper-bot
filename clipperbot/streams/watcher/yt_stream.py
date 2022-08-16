@@ -128,12 +128,13 @@ class YtStrmWatcher(Poller):
                 logger.info(f"Stream download ended: {self.target}")
             # Did it really end?
             try:
-                if not await self._poll():
-                    logger.debug(f"Poll returned None after dl ended: {self.target}")
-                    break
-                else:
+                s_ = await self._poll()
+                if s_ and s_.online:
                     logger.warning(f"Stream dl ended but is still online: {self.target}")
                     await aio.sleep(self.poll_period/3)
+                else:
+                    logger.debug(f"Poll returned {s_ and s_.online} after dl ended: {self.target}")
+                    break
             except Exception as e:
                 logger.exception(e)
                 break

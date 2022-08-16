@@ -52,10 +52,13 @@ async def _read_yt_error(stream: aio.StreamReader):
             continue
         if not line:
             break
+
         if "HTTP Error 429:" in line_str:
             logger.critical(line_str)
         elif "HTTP Error 403:" in line_str:
             logger.critical(line_str)
+        elif "warning" in line_str.lower() or "error" in line_str.lower():
+            logger.warning(line_str)
 
 
 class YTLiveDownload:
