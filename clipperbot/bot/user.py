@@ -153,13 +153,65 @@ class Clipping(cm.Cog):
         "Clip relative to stream start."
         await self.clip_from_start_cm(ctx, time_stamp, duration, stream)
 
-    @cm.command(
-        name="c fromstart",
-        aliases=("clip fromstart", "a fromstart"),
+    @cm.group(
+        name="c",
+        aliases=("clip",),
+        brief="Clip!",
+        help=help_strings.clip_help,
+        invoke_without_command=True,
+    )
+    async def clip_cm(
+        self,
+        ctx: cm.Context["ClipperBot"],
+        seconds_ago: str = str(DEF_AGO),
+        duration: str | None = None,
+    ):
+        "!c"
+        await self.do_clip(ctx, seconds_ago, duration, audio_only=False)
+
+
+    @ac.command(
+        name="c",
+        description="Clip!",
+    )
+    @ac.describe(
+        seconds_ago=f"How many seconds ago from now is the clip. Default is {DEF_AGO} seconds.",
+        duration=f"Duration of the clip. Defaults to seconds ago.",
+    )
+    async def clip_ac(
+        self,
+        it: dc.Interaction,
+        seconds_ago: str = str(DEF_AGO),
+        duration: str | None = None,
+    ):
+        "!c"
+        ctx = await cm.Context.from_interaction(it)
+        await self.do_clip(ctx, seconds_ago, duration, audio_only=False)
+
+    @cm.hybrid_command(
+        name="a",
+        aliases=("audio",),
+        brief="Clip audio only",
+        help=help_strings.audio_help,
+    )
+    @ac.describe(
+        seconds_ago=f"How many seconds ago from now is the clip. Default is {DEF_AGO} seconds.",
+        duration=f"Duration of the clip. Defaults to seconds ago.",
+    )
+    async def audio_only(
+        self,
+        ctx: cm.Context["ClipperBot"],
+        seconds_ago: str = str(DEF_AGO),
+        duration: str | None = None,
+    ):
+        "!a"
+        await self.do_clip(ctx, seconds_ago, duration, audio_only=True)
+
+    @clip_cm.command(
+        name="fromstart",
         brief="Clip relative to stream start.",
         help=help_strings.from_start_help,
     )
-    @thinking
     async def clip_from_start_cm(
         self,
         ctx: cm.Context,
@@ -242,44 +294,6 @@ class Clipping(cm.Cog):
         await self.create_n_send_clip(
             ctx, clipped_stream, ts, None, duration_t, audio_only=False
         )
-
-    @cm.hybrid_command(
-        name="c",
-        aliases=("clip",),
-        brief="Clip!",
-        help=help_strings.clip_help,
-    )
-    @ac.describe(
-        seconds_ago=f"How many seconds ago from now is the clip. Default is {DEF_AGO} seconds.",
-        duration=f"Duration of the clip. Defaults to seconds ago.",
-    )
-    async def clip(
-        self,
-        ctx: cm.Context["ClipperBot"],
-        seconds_ago: str = str(DEF_AGO),
-        duration: str | None = None,
-    ):
-        "!c"
-        await self.do_clip(ctx, seconds_ago, duration, audio_only=False)
-
-    @cm.hybrid_command(
-        name="a",
-        aliases=("audio",),
-        brief="Clip audio only",
-        help=help_strings.audio_help,
-    )
-    @ac.describe(
-        seconds_ago=f"How many seconds ago from now is the clip. Default is {DEF_AGO} seconds.",
-        duration=f"Duration of the clip. Defaults to seconds ago.",
-    )
-    async def audio_only(
-        self,
-        ctx: cm.Context["ClipperBot"],
-        seconds_ago: str = str(DEF_AGO),
-        duration: str | None = None,
-    ):
-        "!a"
-        await self.do_clip(ctx, seconds_ago, duration, audio_only=True)
 
     async def do_clip(
         self,
