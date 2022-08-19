@@ -159,7 +159,7 @@ class Clipping(cm.Cog):
                 f"\nExample: `2:14:24` or `8064`.",
                 ephemeral=True,
             )
-            raise
+            return
 
         if duration:
             try:
@@ -169,7 +169,7 @@ class Clipping(cm.Cog):
                     f"{duration} is wrong. Example: `10`, `130` or `2:10`.",
                     ephemeral=True,
                 )
-                raise
+                return
             if duration_t > MAX_DURATION:
                 max_dur_str = deltatime_to_str(MAX_DURATION, colon=True, millisecs=False)
                 await ctx.send(
