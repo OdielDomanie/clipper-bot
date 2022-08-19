@@ -110,6 +110,7 @@ class Clipping(cm.Cog):
         self.edit_window = EditWindow(self)
         self.edit_windowss = EditWindowSS(self)
         self.bot.add_view(self.edit_window)
+        self.bot.add_view(self.edit_windowss)
 
     async def stream_autocomp(self, it: dc.Interaction, curr: str) -> list[ac.Choice]:
         "Return streamer names."
@@ -574,7 +575,8 @@ class Clipping(cm.Cog):
     async def on_reaction_add(self, reaction: dc.Reaction, user: dc.User | dc.Member):
         if reaction.emoji == "❌":
             if (
-                (clip := self.sent_clips.get(reaction.message.id))
+                ((clip := self.sent_clips.get(reaction.message.id))
+                or (clip := self.sent_screenshots.get(reaction.message.id)))
                 and user.id == clip.user_id
             ):
                 await reaction.message.delete()
@@ -608,9 +610,10 @@ class Clipping(cm.Cog):
 
         # Raises errors for: Stage, Forum, Category channels
         msg = ctx.channel.get_partial_message(msg_id)  # type: ignore
+        view = self.edit_windowss if screenshot else self.edit_window
         if ctx.author.id == clip.user_id:
             await aio.gather(
-                msg.edit(view=self.edit_window),
+                msg.edit(view=view),
                 ctx.send(f"⬆ Added edit controls to {msg.jump_url}", ephemeral=True),
             )
         else:
@@ -893,7 +896,7 @@ class EditWindowSS(dc.ui.View):
         assert it.message
         msg_id = it.message.id
 
-        old_clip = self.cog.sent_clips[msg_id]
+        old_clip = self.cog.sent_screenshots[msg_id]
         if it.user.id != old_clip.user_id:
             await it.response.defer()
             return

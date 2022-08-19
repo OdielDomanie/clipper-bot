@@ -340,7 +340,7 @@ class ClipFromLivedownload(StreamWithActDL):
                     ts,
                     duration,
                     audio_only,
-                    screenshot=False,
+                    screenshot=screenshot,
                     try_no=try_no,
                     out_fpath=out_fpath,
                 )
