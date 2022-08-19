@@ -193,7 +193,7 @@ class TTVStream(ClipFromLivedownload, StreamWithActDL):
 
     async def _clip_from_segments(
         self, ts: float, duration: float, audio_only: bool, screenshot=False, *, out_fpath, try_no
-    ) -> str | bytes | None:
+    ) -> str | bytes:
         clip_intrv = (round(ts), round(ts+duration))
 
         vod_ints: list[tuple[str, INTRVL]] = [(d[2], (d[0], d[0]+d[1])) for d in self._past_segments_vod]
@@ -227,8 +227,7 @@ class TTVStream(ClipFromLivedownload, StreamWithActDL):
                     if try_no < 2:
                         logger.error(f"File {fpath} not found, trying clip again.")
                         vod_ints.remove((fpath, i))
-            if try_no >= 2:
-                raise
+            raise
 
     def is_alias(self, name: str) -> bool:
         return (

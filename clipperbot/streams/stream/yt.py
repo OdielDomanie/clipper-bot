@@ -180,7 +180,7 @@ class YTStream(ClipFromLivedownload, StreamWithActDL):
         *,
         out_fpath,
         try_no,
-    ) -> str | bytes | None:
+    ) -> str | bytes:
 
         clip_intrv = (round(ts), round(ts+duration))
         try:
@@ -226,16 +226,13 @@ class YTStream(ClipFromLivedownload, StreamWithActDL):
         except OutOfTimeRange as e:
             raise DownloadCacheMissing() from e
         except Exception:
-            retry = False
             for past_segments in (self._past_segments_vod, self._past_segments_live):
-                for a, b, fpath in past_segments:
+                for a, b, fpath in past_segments.copy():
                     if not os.path.isfile(fpath):
                         if try_no < 2:
                             logger.error(f"File {fpath} not found, trying clip again.")
                             past_segments.remove((a, b, fpath))
-                            retry = True
-            if not retry:
-                raise
+            raise
 
     def is_alias(self, name: str) -> bool | Any:
         channel_id = self.info_dict["channel_url"].split("/")[-1]

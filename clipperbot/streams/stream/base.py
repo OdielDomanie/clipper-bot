@@ -292,17 +292,24 @@ class ClipFromLivedownload(StreamWithActDL):
         clip_f = cutting.screenshot if screenshot else cutting.cut
 
         for try_no in range(3):  # If file is not found, try again
+            continue_ = False
             # If covered by active download
             if self._download and self._download.start_time <= ts_irl:
-                return await clip_f(
-                    self._download.output_fpath,
-                    ts_irl - self._download.start_time,
-                    None,
-                    t=duration,
-                    out_fpath=out_fpath,
-                    audio_only=audio_only,
-                    quick_seek=self.quick_seek
-                )
+                try:
+                    return await clip_f(
+                        self._download.output_fpath,
+                        ts_irl - self._download.start_time,
+                        None,
+                        t=duration,
+                        out_fpath=out_fpath,
+                        audio_only=audio_only,
+                        quick_seek=self.quick_seek
+                    )
+                except Exception as e:
+                    if try_no < 2:
+                        logger.info(f"Got {e}, trying again")
+                    else:
+                        raise
             else:
                 for d_end, d in self._past_actdl:
                     if d.start_time <= ts_irl and end_irl <= d_end:
@@ -320,21 +327,26 @@ class ClipFromLivedownload(StreamWithActDL):
                             self._past_actdl.remove((d_end, d))
                             if try_no < 2:
                                 logger.error(f"File {d.output_fpath} not found, trying clip again.")
-                                continue
+                                continue_ = True
+                                break
                             else:
                                 raise
+            if continue_:
+                continue
 
             # No live download can fully cover the clip.
-            res = await self._clip_from_segments(
-                ts,
-                duration,
-                audio_only,
-                screenshot=False,
-                try_no=try_no,
-                out_fpath=out_fpath,
-            )
-            if res is not None:
-                return res
+            try:
+                return await self._clip_from_segments(
+                    ts,
+                    duration,
+                    audio_only,
+                    screenshot=False,
+                    try_no=try_no,
+                    out_fpath=out_fpath,
+                )
+            except Exception as e:
+                if try_no >= 2:
+                    raise
         assert False  # This is never reached.
 
     @abstractmethod
@@ -347,7 +359,6 @@ class ClipFromLivedownload(StreamWithActDL):
         *,
         out_fpath,
         try_no,
-    ) -> str | bytes | None:
+    ) -> str | bytes:
         """No live download can fully cover the clip.
-        Return None if loop should continue.
         """
