@@ -14,6 +14,14 @@ class Clip:
 
     async def create_thumbnail(self) -> bytes:
         if self.audio_only:
-            raise Exception("Can't make thumbnail of audio_only clip")
+            raise Exception("Can't make thumbnail of audio_only clip.")
 
         return await screenshot(self.fpath, ss=0, sseof=None, quick_seek=True)
+
+
+@dataclass(eq=True, frozen=True)
+class Screenshot:
+    fname: str
+    data: bytes
+    ago: float | None
+    from_start: float

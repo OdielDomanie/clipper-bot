@@ -34,6 +34,7 @@ class WatcherSharer:
     def start(self):
         assert not self.active
         if self.sharer.start_count == 0:
+            logger.info(f"Starting watcher for {self.target}")
             self.sharer.w.start()
         else:
             logger.info(f"Sharing watcher for {self.target}")

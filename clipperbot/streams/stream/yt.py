@@ -4,7 +4,7 @@ import os
 import pathlib
 import re
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ... import CLIP_DIR
 from ...utils import (INTRVL, deep_del_key, find_intersections, lock,
@@ -16,7 +16,7 @@ from ..download.yt_live import YTLiveDownload
 from ..download.ytdl_past import OutOfTimeRange, download_past
 from ..exceptions import DownloadCacheMissing
 from . import all_streams
-from .base import CantSseof, StreamStatus, StreamWithActDL
+from .base import CantSseof, ClipFromLivedownload, StreamStatus, StreamWithActDL
 
 
 logger = logging.getLogger(__name__)
@@ -36,7 +36,9 @@ def yt_stream_uid(stream_url: str):
     return "yt", stream_url[-11:]
 
 
-class YTStream(StreamWithActDL):
+class YTStream(ClipFromLivedownload, StreamWithActDL):
+
+    quick_seek = True
 
     @classmethod
     def url_is_valid(cls, url: str) -> bool:
@@ -141,21 +143,6 @@ class YTStream(StreamWithActDL):
             self.actdl_on.clear()
             self.actdl_off.set()
 
-    def _get_download_loc_ts(self, ts: float, duration:float) -> tuple[str, float] | None:
-        """Return video fpath, and relative ss. None if the clip can't be fully covered
-        (except if it spills into the future.).
-        """
-        ts_irl = self.start_time + ts
-        end_irl = ts_irl + duration
-
-        if self._download and self._download.start_time <= ts_irl:
-            return self._download.output_fpath, ts_irl - self._download.start_time
-        else:
-            for d_end, d in self._past_actdl:
-                if d.start_time <= ts_irl and end_irl <= d_end:
-                    return d.output_fpath, ts_irl - d.start_time
-        return None
-
     async def _download_past(self, ss: int, t: int, use_infodict=False) -> tuple[str, str]:
         async with self._pastdl_lock:
             out_fpath = os.path.join(
@@ -179,93 +166,76 @@ class YTStream(StreamWithActDL):
             return out_fpath, live_status
 
     @lock("_clip_lock")
-    async def _clip_ss(self, ts: float, duration: float, audio_only: bool) -> str:
-        ts_irl = self.start_time + ts
-        end_irl = ts_irl + duration
-        out_fpath = os.path.join(
-            CLIP_DIR, self.title.replace("/","_") + f"_{ts:.0f}_{duration:.0f}"
-        )
+    async def _clip_ss(
+        self, ts: float, duration: float, audio_only: bool, screenshot=False
+    ):
+        return await super()._clip_ss(ts, duration, audio_only, screenshot)
 
-        for try_no in range(3):  # If file is not found, try again
-            # If covered by active download
-            if self._download and self._download.start_time <= ts_irl:
-                return await cutting.cut(
-                    self._download.output_fpath,
-                    ts_irl - self._download.start_time,
+    async def _clip_from_segments(
+        self,
+        ts: float,
+        duration: float,
+        audio_only: bool,
+        screenshot=False,
+        *,
+        out_fpath,
+        try_no,
+    ) -> str | bytes | None:
+
+        clip_intrv = (round(ts), round(ts+duration))
+        try:
+            vod_ints: list[tuple[str, INTRVL]] = [(d[2], (d[0], d[0]+d[1])) for d in self._past_segments_vod]
+            vod_covered, vod_uncovered = find_intersections(clip_intrv, vod_ints)
+            plive_ints: list[tuple[str, INTRVL]] = [(d[2], (d[0], d[0]+d[1])) for d in self._past_segments_live]
+            plive_covered, plive_uncovered = find_intersections(clip_intrv, plive_ints)
+
+            og_live_status = self.info_dict["live_status"]
+            if self.info_dict["live_status"] in ("post_live", "is_live"):
+                ints = plive_ints
+                covered = plive_covered
+                uncovered = plive_uncovered
+            else:
+                ints = vod_ints
+                covered = vod_covered
+                uncovered = vod_uncovered
+
+            add_s = list[tuple[str, tuple[int, int]]]()
+            logger.debug(ints)
+            for s in uncovered:
+                dl_start = max(s[0]-30,0)
+                start_diff = s[0] - dl_start
+                dl_end = min(s[1]+30, int(self.end_time or time.time()-self.start_time))
+                end_diff = s[1] - dl_end
+                o, ls = await self._download_past(dl_start, dl_end-dl_start, use_infodict=bool(try_no))
+                if ls != og_live_status:
+                    raise Exception("Wrong live_status")
+                add_s.append(
+                    (o, (start_diff, (dl_end-dl_start)+end_diff))
+                )
+            fpath_ranges = (add_s + covered)
+            if screenshot:
+                return await cutting.screenshot(
+                    fpath_ranges[0][0],
+                    fpath_ranges[0][1][0],
                     None,
-                    duration,
-                    out_fpath=out_fpath,
-                    audio_only=audio_only,
-                    quick_seek=True
+                    quick_seek=True,
                 )
             else:
-                for d_end, d in self._past_actdl:
-                    if d.start_time <= ts_irl and end_irl <= d_end:
-                        try:
-                            return await cutting.cut(
-                                d.output_fpath,
-                                ts_irl - d.start_time,
-                                None,
-                                duration,
-                                out_fpath=out_fpath,
-                                audio_only=audio_only,
-                                quick_seek=True
-                            )
-                        except FileNotFoundError:
-                            self._past_actdl.remove((d_end, d))
-                            if try_no < 2:
-                                logger.error(f"File {d.output_fpath} not found, trying clip again.")
-                                continue
-                            else:
-                                raise
+                return await cutting.concat(*fpath_ranges, out_fpath=out_fpath)
 
-            # No live download can fully cover the clip.
-            clip_intrv = (round(ts), round(ts+duration))
-            try:
-                vod_ints: list[tuple[str, INTRVL]] = [(d[2], (d[0], d[0]+d[1])) for d in self._past_segments_vod]
-                vod_covered, vod_uncovered = find_intersections(clip_intrv, vod_ints)
-                plive_ints: list[tuple[str, INTRVL]] = [(d[2], (d[0], d[0]+d[1])) for d in self._past_segments_live]
-                plive_covered, plive_uncovered = find_intersections(clip_intrv, plive_ints)
-
-                og_live_status = self.info_dict["live_status"]
-                if self.info_dict["live_status"] in ("post_live", "is_live"):
-                    ints = plive_ints
-                    covered = plive_covered
-                    uncovered = plive_uncovered
-                else:
-                    ints = vod_ints
-                    covered = vod_covered
-                    uncovered = vod_uncovered
-
-                add_s = list[tuple[str, tuple[int, int]]]()
-                logger.debug(ints)
-                for s in uncovered:
-                    dl_start = max(s[0]-30,0)
-                    start_diff = s[0] - dl_start
-                    dl_end = min(s[1]+30, int(self.end_time or time.time()-self.start_time))
-                    end_diff = s[1] - dl_end
-                    o, ls = await self._download_past(dl_start, dl_end-dl_start, use_infodict=bool(try_no))
-                    if ls != og_live_status:
-                        raise Exception("Wrong live_status")
-                    add_s.append(
-                        (o, (start_diff, (dl_end-dl_start)+end_diff))
-                    )
-                return await cutting.concat(*(add_s + covered), out_fpath=out_fpath)
-
-            except OutOfTimeRange as e:
-                raise DownloadCacheMissing() from e
-            except Exception:
-                retry = False
-                for past_segments in (self._past_segments_vod, self._past_segments_live):
-                    for a, b, fpath in past_segments:
-                        if not os.path.isfile(fpath):
-                            if try_no < 2:
-                                logger.error(f"File {fpath} not found, trying clip again.")
-                                past_segments.remove((a, b, fpath))
-                                retry = True
-                if not retry:
-                    raise
-        assert False  # This is never reached.
+        except OutOfTimeRange as e:
+            raise DownloadCacheMissing() from e
+        except Exception:
+            retry = False
+            for past_segments in (self._past_segments_vod, self._past_segments_live):
+                for a, b, fpath in past_segments:
+                    if not os.path.isfile(fpath):
+                        if try_no < 2:
+                            logger.error(f"File {fpath} not found, trying clip again.")
+                            past_segments.remove((a, b, fpath))
+                            retry = True
+            if not retry:
+                raise
 
     def is_alias(self, name: str) -> bool | Any:
         channel_id = self.info_dict["channel_url"].split("/")[-1]
@@ -280,22 +250,6 @@ class YTStream(StreamWithActDL):
             or name.lower() in og_name.lower()
             or (en_name and name.lower() in en_name.lower())
         )
-
-    async def _clip_sseof(self, ago: float, duration: float, audio_only: bool) -> str:
-        ts = time.time() - ago - self.start_time
-        out_fpath = os.path.join(CLIP_DIR, self.title.replace("/","_") + f"_{ts:.0f}_{duration:.0f}")
-        if self._download and (time.time() - self._download.start_time) >= ago:
-            return await cutting.cut(
-                self._download.output_fpath,
-                None,
-                -ago,
-                duration,
-                out_fpath,
-                audio_only,
-                quick_seek=True
-            )
-        else:
-            raise CantSseof()
 
     def clean_space(self, size: int) -> int:
         # Punching holes does not seem feasible, as ffmpeg has trouble with timestamps
@@ -383,3 +337,7 @@ class YTStream(StreamWithActDL):
         self.actdl_off = aio.Event()
         self.actdl_off.set()
         self.actdl_on = aio.Event()
+
+
+if TYPE_CHECKING:
+    YTStream("", "", StreamStatus.ONLINE, {})

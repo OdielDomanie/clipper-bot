@@ -167,6 +167,7 @@ async def screenshot(
     sseof: float | None,
     quick_seek: bool,
     ffmpeg=FFMPEG,
+    **_,
 ) -> bytes:
     "Creates a png screenshots and returns it as bytes."
 
@@ -184,7 +185,7 @@ async def screenshot(
         "-i", fpath,
         "-vframes", "1",
         "-c:v", "png",
-        "f", "image2pipe", "-"
+        "-f", "image2pipe", "-"
     ]
 
     time_args_i = 3 if quick_seek else 5

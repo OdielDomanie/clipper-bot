@@ -1,5 +1,6 @@
 import asyncio as aio
 import functools
+from io import BytesIO
 import logging
 import os
 import pickle
@@ -16,7 +17,7 @@ from discord.ext import commands as cm
 from .. import DEF_AGO, DEF_DURATION, MAX_CLIPS_SIZE, MAX_DURATION
 from ..persistent_dict import PersistentDict
 from ..streams import cutting
-from ..streams.clip import Clip
+from ..streams.clip import Clip, Screenshot
 from ..streams.exceptions import DownloadCacheMissing
 from ..streams.stream import all_streams
 from ..utils import deltatime_to_str, rreload, thinking
@@ -39,6 +40,16 @@ class _SentClip:
     ago: float | None
     from_start: float
     audio_only: bool
+    channel_id: int
+    msg_id: int
+    user_id: int
+    stream_uid: object
+
+
+@dataclass(eq=True, frozen=True)
+class _SentSS:
+    ago: float | None
+    from_start: float
     channel_id: int
     msg_id: int
     user_id: int
@@ -82,7 +93,13 @@ class Clipping(cm.Cog):
             "sent_clips",
             load_v=pickle.loads,
             dump_v=pickle.dumps,
-            )
+        )
+        self.sent_screenshots = PersistentDict[int, _SentSS](
+            bot.database,
+            "sent_screenshots",
+            load_v=pickle.loads,
+            dump_v=pickle.dumps,
+        )
 
         cog = bot.get_cog("Admin")
         if TYPE_CHECKING:
@@ -91,6 +108,7 @@ class Clipping(cm.Cog):
         self._settings = self.admin_cog.settings
 
         self.edit_window = EditWindow(self)
+        self.edit_windowss = EditWindowSS(self)
         self.bot.add_view(self.edit_window)
 
     async def stream_autocomp(self, it: dc.Interaction, curr: str) -> list[ac.Choice]:
@@ -344,7 +362,8 @@ class Clipping(cm.Cog):
         ago_t: float | None,
         duration_t: float,
         audio_only: bool,
-        edit_view = False,
+        edit_view=False,
+        screenshot=False,
     ):
         assert ctx.guild
         if ts is not None:
@@ -355,13 +374,18 @@ class Clipping(cm.Cog):
             raise TypeError("Both ts and ago_t can't be None.")
         try:
             try:
-                clip: Clip = await clip_f(duration_t, audio_only=audio_only)
+                clip = await clip_f(duration_t, audio_only=audio_only, screenshot=screenshot)
             # When clip cm is run just after stream cm, attr error due to unbound start_time is raised
             except AttributeError:  # Dirty fix
                 await aio.sleep(5)
                 if ago_t:
                     ago_t += 5
-                clip = await clip_f(duration_t, audio_only=audio_only)
+                clip = await clip_f(duration_t, audio_only=audio_only, screenshot=screenshot)
+
+            if screenshot:
+                return await self.send_ss(
+                    ctx, clip, clipped_stream.unique_id, edit_view=edit_view  # type: ignore  # clip is Screenshot
+                )
 
             # If clip size is barely above the file size limit, cut a little and try again.
             if 0 < clip.size - ctx.guild.filesize_limit <= 800_000:
@@ -481,6 +505,32 @@ class Clipping(cm.Cog):
             logger.info(f"Removing clip file {f}")
             os.remove(f)
 
+    async def send_ss(
+        self, ctx: cm.Context["ClipperBot"], clip: Screenshot, suid, edit_view=False
+    ):
+        assert ctx.guild
+
+        # Send as attachment
+        msg = await ctx.reply(
+            file=dc.File(BytesIO(clip.data), clip.fname),
+            view=self.edit_windowss if edit_view else None,
+        )
+
+        try:
+            await msg.add_reaction("❌")
+        except dc.Forbidden:
+            pass
+
+        sent_clip = _SentSS(
+            ago=clip.ago,
+            from_start=clip.from_start,
+            channel_id=ctx.channel.id,
+            msg_id=msg.id,
+            user_id=ctx.author.id,
+            stream_uid=suid,
+        )
+        self.sent_screenshots[msg.id] = sent_clip
+
     async def prepare_embed(self, clip: Clip, direct_link=True) -> dict:
         """Return args for ctx.send/reply, and a _SentClip,
         without adding to sent_clips dict.
@@ -512,7 +562,7 @@ class Clipping(cm.Cog):
             logger.error(f"Creating thumbnail failed: {e}")
             kwargs = dict(embed=embed)
         else:
-            file = dc.File(thumbnail, filename="image.jpg")
+            file = dc.File(BytesIO(thumbnail), filename="image.jpg")
             embed.set_thumbnail(url="attachment://image.jpg")
             kwargs = dict(file=file, embed=embed)
         return kwargs
@@ -537,7 +587,16 @@ class Clipping(cm.Cog):
         message_id_parsed = message_id_parsed.split("-")[-1]
         try:
             msg_id = int(message_id_parsed)
-            clip = self.sent_clips[msg_id]
+            try:
+                clip = self.sent_clips[msg_id]
+                screenshot = False
+                duration = clip.duration
+                audio_only = clip.audio_only
+            except KeyError:
+                clip = self.sent_screenshots[msg_id]
+                screenshot = True
+                duration = 1
+                audio_only = False
         except (ValueError, KeyError):
             if it := ctx.interaction:
                 await it.response.send_message(
@@ -561,10 +620,33 @@ class Clipping(cm.Cog):
                 stream,
                 clip.from_start,
                 None,
-                clip.duration,
-                clip.audio_only,
+                duration,
+                audio_only,
                 edit_view=True,
+                screenshot=screenshot,
             )
+
+    @cm.hybrid_command()
+    async def ss(self, ctx: cm.Context):
+        "Screenshot! (with anime face detection)"
+
+        streams= self.admin_cog.get_streams(ctx.channel.id)
+
+        try:
+            p, clipped_stream = max(
+                streams,
+                key=lambda ps: (ps[1].active, ps[0], ps[1].end_time or ps[1].start_time)
+            )
+        except ValueError:
+            await ctx.send(
+                "No stream was captured in this channel. Use `register` or `stream` first.",
+                ephemeral=True,
+            )
+            return
+
+        await self.create_n_send_clip(
+            ctx, clipped_stream, None, 2, 1, False, screenshot=True
+        )
 
 
 class EditWindow(dc.ui.View):
@@ -772,3 +854,117 @@ class EditWindow(dc.ui.View):
             stream_uid=old_clip.stream_uid,
         )
         self.cog.sent_clips[msg.id] = sent_clip
+
+
+class EditWindowSS(dc.ui.View):
+
+    def __init__(self, cog: "Clipping"):
+        super().__init__(timeout=None)
+        self.cog = cog
+
+        # {msg_id: Lock}
+        self.edit_locks = dict[int, aio.Lock]()
+
+    @dc.ui.button(
+        row=1, custom_id="editwindowbbss", emoji="⏪", style=dc.ButtonStyle.grey
+    )
+    async def big_back(self, it: dc.Interaction, button: dc.ui.Button):
+        await self.edit(it, -10)
+
+    @dc.ui.button(
+        row=1, custom_id="editwindowsbss", emoji="◀", style=dc.ButtonStyle.grey
+    )
+    async def small_back(self, it: dc.Interaction, button: dc.ui.Button):
+        await self.edit(it, -1)
+
+    @dc.ui.button(
+        row=1, custom_id="editwindowsfss", emoji="▶", style=dc.ButtonStyle.grey
+    )
+    async def small_forward(self, it: dc.Interaction, button: dc.ui.Button):
+        await self.edit(it, +1)
+
+    @dc.ui.button(
+        row=1, custom_id="editwindowbfss", emoji="⏩", style=dc.ButtonStyle.grey
+    )
+    async def big_forward(self, it: dc.Interaction, button: dc.ui.Button):
+        await self.edit(it, +10)
+
+    async def edit(self, it: dc.Interaction, adj: int):
+        assert it.message
+        msg_id = it.message.id
+
+        old_clip = self.cog.sent_clips[msg_id]
+        if it.user.id != old_clip.user_id:
+            await it.response.defer()
+            return
+
+        async with self.edit_locks.setdefault(msg_id, aio.Lock()):
+            await self._do_edit(it, adj)
+
+    async def _do_edit(self, it: dc.Interaction, adj: int):
+        assert it.message and it.guild and it.channel
+
+        msg_id = it.message.id
+        old_clip = self.cog.sent_screenshots[msg_id]
+        stream = all_streams[old_clip.stream_uid]
+
+        for t, s in self.cog.admin_cog.blocked_streams.get((it.guild.id,), ()):
+            if (
+                (stream.stream_url == s or stream.channel_url == s)
+                and time.time() < t
+            ):
+                await it.response.send_message(
+                    "Not allowed to clip this stream :/",
+                    ephemeral=True,
+                )
+                return
+
+        og_view = dc.ui.View.from_message(it.message, timeout=None)
+        grey_view = dc.ui.View.from_message(it.message, timeout=None)
+        for c in grey_view.children:
+            if isinstance(c, dc.ui.Button):
+                c.disabled = True
+        grey_view.stop()
+        og_view.stop()
+        async def grey_in_future():
+            await  aio.sleep(3)
+            nonlocal is_grey
+            is_grey = True
+            await it.followup.edit_message(msg_id, view=grey_view)
+        gf_t = aio.create_task(grey_in_future())
+        is_grey = False
+        await it.response.defer()
+        try:
+            new_ss = old_clip.from_start + adj
+            logger.info(f"Doing edit (screenshot): {new_ss}")
+
+            new_clip = await stream.clip_from_start(
+                new_ss, 1, audio_only=False, screenshot=True
+            )
+
+            msg = it.channel.get_partial_message(msg_id)  # type: ignore
+
+            file=dc.File(BytesIO(new_clip.data), new_clip.fname)
+
+            gf_t.cancel("gf_t interrupted")
+            await aio.gather(gf_t, return_exceptions=True)
+
+            await msg.edit(
+                content=None, embeds=[], attachments=[file], view=og_view
+            )
+            is_grey = False
+        finally:
+            gf_t.cancel("gf_t interrupted")
+            await aio.gather(gf_t, return_exceptions=True)
+            if is_grey:
+                await it.followup.edit_message(msg_id, view=og_view)
+
+        sent_clip = _SentSS(
+            ago=new_clip.ago,
+            from_start=new_clip.from_start,
+            channel_id=it.channel.id,
+            msg_id=msg.id,
+            user_id=it.user.id,
+            stream_uid=old_clip.stream_uid,
+        )
+        self.cog.sent_screenshots[msg.id] = sent_clip

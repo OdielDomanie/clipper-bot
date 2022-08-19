@@ -1,11 +1,20 @@
 import asyncio as aio
 import enum
+import logging
 import os.path
 import time
+from typing import TYPE_CHECKING, overload, Literal
 from abc import ABC, abstractmethod
 
-from ... import DOWNLOAD_DIR
-from ..clip import Clip
+from ... import CLIP_DIR, DOWNLOAD_DIR
+from .. import cutting
+from ..clip import Clip, Screenshot
+
+if TYPE_CHECKING:
+    from ..download.yt_live import YTLiveDownload
+
+
+logger = logging.getLogger(__name__)
 
 
 class StreamStatus(enum.Enum):
@@ -60,8 +69,35 @@ class Stream(ABC):
         "If the stream is currently downloading."
         ...
 
-    async def clip_from_start(self, ts: float, duration: float, audio_only=True) -> Clip:
-        fpath = await self._clip_ss(ts, duration, audio_only=audio_only)
+    @overload
+    async def clip_from_start(
+        self, ts: float, duration: float, audio_only: bool, screenshot: Literal[False] = False
+    ) -> Clip:
+        ...
+
+    @overload
+    async def clip_from_start(
+        self, ts: float, duration: float, audio_only: bool, screenshot: Literal[True]
+    ) -> Screenshot:
+        ...
+
+    async def clip_from_start(
+        self, ts: float, duration: float, audio_only=False, screenshot=False
+    ) -> Clip | Screenshot:
+        if screenshot:
+            png = await self._clip_ss(ts, duration, audio_only=audio_only, screenshot=screenshot)
+            if len(png) < 200:
+                raise Exception("Clip file probably corrupt.")
+            else:
+                name = f"{self.title}_{ts:.0f}.png"
+                return Screenshot(
+                    fname=name,
+                    data=png,
+                    ago=None,
+                    from_start=ts
+                )
+        else:
+            fpath = await self._clip_ss(ts, duration, audio_only=audio_only, screenshot=screenshot)
         size = os.path.getsize(fpath)
         SIZE_TRESHOLD = 20_000
         if size < SIZE_TRESHOLD:
@@ -76,15 +112,70 @@ class Stream(ABC):
         )
 
     @abstractmethod
-    async def _clip_ss(self, ts: float, duration: float, audio_only: bool) -> str:
-        "Clip and return the file path."
+    @overload
+    async def _clip_ss(
+        self, ts: float, duration: float, audio_only: bool, screenshot: Literal[False] = False,
+    ) -> str:
+        ...
 
-    async def clip_from_end(self, ago: float, duration: float, audio_only=True) -> Clip:
+    @abstractmethod
+    @overload
+    async def _clip_ss(
+        self, ts: float, duration: float, audio_only: bool, screenshot: Literal[True]
+    ) -> bytes:
+        ...
+
+    @abstractmethod
+    async def _clip_ss(
+        self, ts: float, duration: float, audio_only: bool, screenshot=False
+    ) -> str | bytes:
+        "Clip and return the file path, or the result as bytes."
+
+    @overload
+    async def clip_from_end(
+        self, ago: float, duration: float, audio_only=False, screenshot: Literal[False] = False
+    ) -> Clip:
+        ...
+
+    @overload
+    async def clip_from_end(
+        self, ago: float, duration: float, audio_only: bool, screenshot: Literal[True]
+    ) -> Screenshot:
+        ...
+
+    async def clip_from_end(
+        self, ago: float, duration: float, audio_only=False, screenshot=False
+    ) -> Clip | Screenshot:
+
         ts =  (self.end_time or time.time()) - ago - self.start_time
+
+        if screenshot:
+            try:
+                png = await self._clip_sseof(
+                    ago, duration, audio_only=audio_only, screenshot=screenshot
+                )
+            except CantSseof:
+                png = await self._clip_ss(
+                    ts, duration, audio_only=audio_only, screenshot=screenshot
+                )
+            if len(png) < 200:
+                raise Exception("Clip file probably corrupt.")
+            name = f"{self.title}_{ts:.0f}.png"
+            return Screenshot(
+                fname=name,
+                data=png,
+                ago=ago,
+                from_start=ts
+            )
+
         try:
-            fpath = await self._clip_sseof(ago, duration, audio_only=audio_only)
+            fpath = await self._clip_sseof(
+                ago, duration, audio_only=audio_only, screenshot=screenshot
+            )
         except CantSseof:
-            fpath = await self._clip_ss(ts, duration, audio_only=audio_only)
+            fpath = await self._clip_ss(
+                ts, duration, audio_only=audio_only, screenshot=screenshot
+            )
         size = os.path.getsize(fpath)
         SIZE_TRESHOLD = 20_000
         if size < SIZE_TRESHOLD:
@@ -99,7 +190,23 @@ class Stream(ABC):
         )
 
     @abstractmethod
-    async def _clip_sseof(self, ago: float, duration: float, audio_only: bool) -> str:
+    @overload
+    async def _clip_sseof(
+        self, ago: float, duration: float, audio_only: bool, screenshot: Literal[False] = False
+    ) -> str:
+        ...
+
+    @abstractmethod
+    @overload
+    async def _clip_sseof(
+        self, ago: float, duration: float, audio_only: bool, screenshot: Literal[True]
+    ) -> bytes:
+        ...
+
+    @abstractmethod
+    async def _clip_sseof(
+        self, ago: float, duration: float, audio_only: bool, screenshot=False
+    ) -> str | bytes:
         "Clip and return the file path."
 
     @abstractmethod
@@ -135,3 +242,112 @@ class StreamWithActDL(Stream):
 
     actdl_off: aio.Event
     actdl_on: aio.Event
+
+    _download: "YTLiveDownload | None"
+    _past_actdl: "list[tuple[float, YTLiveDownload]]"
+
+
+class ClipFromLivedownload(StreamWithActDL):
+
+    quick_seek: bool
+
+    async def _clip_sseof(
+        self, ago: float, duration: float, audio_only: bool, screenshot=False
+    ):
+        ts = time.time() - ago - self.start_time
+        out_fpath = os.path.join(
+            CLIP_DIR, self.title.replace("/","_") + f"_{ts:.0f}_{duration:.0f}"
+        )
+        if self._download and (time.time() - self._download.start_time) >= ago:
+            if screenshot:
+                return await cutting.screenshot(
+                    self._download.output_fpath,
+                    None,
+                    -ago,
+                    quick_seek=self.quick_seek,
+                )
+            else:
+                return await cutting.cut(
+                    self._download.output_fpath,
+                    None,
+                    -ago,
+                    duration,
+                    out_fpath,
+                    audio_only,
+                    quick_seek=self.quick_seek
+                )
+        else:
+            raise CantSseof()
+
+    async def _clip_ss(
+        self, ts: float, duration: float, audio_only: bool, screenshot=False
+    ):
+        ts_irl = self.start_time + ts
+        end_irl = ts_irl + duration
+        out_fpath = os.path.join(
+            CLIP_DIR, self.title.replace("/","_") + f"_{ts:.0f}_{duration:.0f}"
+        )
+        if screenshot:
+            duration = 1
+        clip_f = cutting.screenshot if screenshot else cutting.cut
+
+        for try_no in range(3):  # If file is not found, try again
+            # If covered by active download
+            if self._download and self._download.start_time <= ts_irl:
+                return await clip_f(
+                    self._download.output_fpath,
+                    ts_irl - self._download.start_time,
+                    None,
+                    t=duration,
+                    out_fpath=out_fpath,
+                    audio_only=audio_only,
+                    quick_seek=self.quick_seek
+                )
+            else:
+                for d_end, d in self._past_actdl:
+                    if d.start_time <= ts_irl and end_irl <= d_end:
+                        try:
+                            return await clip_f(
+                                d.output_fpath,
+                                ts_irl - d.start_time,
+                                None,
+                                t=duration,
+                                out_fpath=out_fpath,
+                                audio_only=audio_only,
+                                quick_seek=self.quick_seek
+                            )
+                        except FileNotFoundError:
+                            self._past_actdl.remove((d_end, d))
+                            if try_no < 2:
+                                logger.error(f"File {d.output_fpath} not found, trying clip again.")
+                                continue
+                            else:
+                                raise
+
+            # No live download can fully cover the clip.
+            res = await self._clip_from_segments(
+                ts,
+                duration,
+                audio_only,
+                screenshot=False,
+                try_no=try_no,
+                out_fpath=out_fpath,
+            )
+            if res is not None:
+                return res
+        assert False  # This is never reached.
+
+    @abstractmethod
+    async def _clip_from_segments(
+        self,
+        ts: float,
+        duration: float,
+        audio_only: bool,
+        screenshot=False,
+        *,
+        out_fpath,
+        try_no,
+    ) -> str | bytes | None:
+        """No live download can fully cover the clip.
+        Return None if loop should continue.
+        """

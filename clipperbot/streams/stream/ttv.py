@@ -4,7 +4,7 @@ import os
 import pathlib
 import re
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ... import CLIP_DIR
 from ...streams.exceptions import DownloadCacheMissing
@@ -16,7 +16,7 @@ from ..download.yt_live import YTLiveDownload
 from ..download.ytdl_past import download_past
 from ..yt_dlp_extractor import fetch_yt_metadata
 from . import all_streams
-from .base import CantSseof, StreamStatus, StreamWithActDL
+from .base import CantSseof, ClipFromLivedownload, StreamStatus, StreamWithActDL
 
 
 logger = logging.getLogger(__name__)
@@ -43,7 +43,9 @@ async def find_vod(chn_url: str, timestamp: int) -> dict:
     raise ValueError()
 
 
-class TTVStream(StreamWithActDL):
+class TTVStream(ClipFromLivedownload, StreamWithActDL):
+
+    quick_seek = True
 
     @classmethod
     def url_is_valid(cls, url: str) -> bool:
@@ -161,21 +163,6 @@ class TTVStream(StreamWithActDL):
             self.actdl_on.clear()
             self.actdl_off.set()
 
-    def _get_download_loc_ts(self, ts: float, duration:float) -> tuple[str, float] | None:
-        """Return video fpath, and relative ss. None if the clip can't be fully covered
-        (except if it spills into the future.).
-        """
-        ts_irl = self.start_time + ts
-        end_irl = ts_irl + duration
-
-        if self._download and self._download.start_time <= ts_irl:
-            return self._download.output_fpath, ts_irl - self._download.start_time
-        else:
-            for d_end, d in self._past_actdl:
-                if d.start_time <= ts_irl and end_irl <= d_end:
-                    return d.output_fpath, ts_irl - d.start_time
-        return None
-
     async def _download_past(self, ss: int, t: int) -> str:
         raise DownloadCacheMissing()
         # Downloading a part of the VOD doesn't work:
@@ -199,72 +186,49 @@ class TTVStream(StreamWithActDL):
             return out_fpath
 
     @lock("_clip_lock")
-    async def _clip_ss(self, ts: float, duration: float, audio_only: bool) -> str:
-        ts_irl = self.start_time + ts
-        end_irl = ts_irl + duration
-        out_fpath = os.path.join(
-            CLIP_DIR, self.title.replace("/","_") + f"_{ts:.0f}_{duration:.0f}"
-        )
+    async def _clip_ss(
+        self, ts: float, duration: float, audio_only: bool, screenshot=False
+    ):
+        return await super()._clip_ss(ts, duration, audio_only, screenshot)
 
-        for try_no in range(3):
-            if self._download and self._download.start_time <= ts_irl:
-                return await cutting.cut(
-                    self._download.output_fpath,
-                    ts_irl - self._download.start_time,
+    async def _clip_from_segments(
+        self, ts: float, duration: float, audio_only: bool, screenshot=False, *, out_fpath, try_no
+    ) -> str | bytes | None:
+        clip_intrv = (round(ts), round(ts+duration))
+
+        vod_ints: list[tuple[str, INTRVL]] = [(d[2], (d[0], d[0]+d[1])) for d in self._past_segments_vod]
+        vod_covered, vod_uncovered = find_intersections(clip_intrv, vod_ints)
+
+        try:
+            add_s = list[tuple[str, tuple[int, int]]]()
+            for s in vod_uncovered:
+                dl_start = max(s[0]-30,0)
+                start_diff = s[0] - dl_start
+                dl_end = min(s[1]+30, int(self.end_time or time.time()-self.start_time))
+                end_diff = s[1] - dl_end
+                o = await self._download_past(dl_start, dl_end-dl_start)
+                add_s.append(
+                    (o, (start_diff, (dl_end-dl_start)+end_diff))
+                )
+            fpath_ranges = (add_s + vod_covered)
+            if screenshot:
+                return await cutting.screenshot(
+                    fpath_ranges[0][0],
+                    fpath_ranges[0][1][0],
                     None,
-                    duration,
-                    out_fpath=out_fpath,
-                    audio_only=audio_only,
-                    quick_seek=True
+                    quick_seek=True,
                 )
             else:
-                for d_end, d in self._past_actdl:
-                    if d.start_time <= ts_irl and end_irl <= d_end:
-                        try:
-                            return await cutting.cut(
-                                d.output_fpath,
-                                ts_irl - d.start_time,
-                                None,
-                                duration,
-                                out_fpath=out_fpath,
-                                audio_only=audio_only,
-                                quick_seek=True
-                            )
-                        except FileNotFoundError:
-                            self._past_actdl.remove((d_end, d))
-                            if try_no < 2:
-                                logger.error(f"File {d.output_fpath} not found, trying clip again.")
-                                continue
-                            else:
-                                raise
+                return await cutting.concat(*fpath_ranges, out_fpath=out_fpath)
 
-            # No live download can fully cover the clip.
-            clip_intrv = (round(ts), round(ts+duration))
-
-            vod_ints: list[tuple[str, INTRVL]] = [(d[2], (d[0], d[0]+d[1])) for d in self._past_segments_vod]
-            vod_covered, vod_uncovered = find_intersections(clip_intrv, vod_ints)
-
-            try:
-                add_s = list[tuple[str, tuple[int, int]]]()
-                for s in vod_uncovered:
-                    dl_start = max(s[0]-30,0)
-                    start_diff = s[0] - dl_start
-                    dl_end = min(s[1]+30, int(self.end_time or time.time()-self.start_time))
-                    end_diff = s[1] - dl_end
-                    o = await self._download_past(dl_start, dl_end-dl_start)
-                    add_s.append(
-                        (o, (start_diff, (dl_end-dl_start)+end_diff))
-                    )
-                return await cutting.concat(*(add_s + vod_covered), out_fpath=out_fpath)
-            except Exception:
-                for fpath, i in vod_ints:
-                    if not os.path.isfile(fpath):
-                        if try_no < 2:
-                            logger.error(f"File {fpath} not found, trying clip again.")
-                            vod_ints.remove((fpath, i))
-                if try_no >= 2:
-                    raise
-        assert False
+        except Exception:
+            for fpath, i in vod_ints:
+                if not os.path.isfile(fpath):
+                    if try_no < 2:
+                        logger.error(f"File {fpath} not found, trying clip again.")
+                        vod_ints.remove((fpath, i))
+            if try_no >= 2:
+                raise
 
     def is_alias(self, name: str) -> bool:
         return (
@@ -277,24 +241,6 @@ class TTVStream(StreamWithActDL):
                 if self.channel_url in chn_urls
             )
         )
-
-    async def _clip_sseof(self, ago: float, duration: float, audio_only: bool) -> str:
-        ts = time.time() - ago - self.start_time
-        out_fpath = os.path.join(
-            CLIP_DIR, self.title.replace("/","_") + f"_{ts:.0f}_{duration:.0f}"
-        )
-        if self._download and (time.time() - self._download.start_time) >= ago:
-            return await cutting.cut(
-                self._download.output_fpath,
-                None,
-                -ago,
-                duration,
-                out_fpath,
-                audio_only,
-                quick_seek=True
-            )
-        else:
-            raise CantSseof()
 
     def clean_space(self, size: int) -> int:
         # Punching holes does not seem feasible, as ffmpeg has trouble with timestamps
@@ -367,3 +313,7 @@ class TTVStream(StreamWithActDL):
         self.actdl_on = aio.Event()
         self.actdl_off = aio.Event()
         self.actdl_off.set()
+
+
+if TYPE_CHECKING:
+    TTVStream("", "", StreamStatus.ONLINE, {})
