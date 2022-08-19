@@ -73,7 +73,7 @@ class ClipperBot(cm.Bot):
 
     async def _log_command(self, ctx: cm.Context):
         logger.info(
-            f"Invoking command {ctx.invoked_with} in {ctx.channel}, {ctx.guild}."
+            f"Invoking command {ctx.message.content} in {ctx.channel}, {ctx.guild}."
             f" (roles: {isinstance(ctx.author, dc.Member) and ctx.author.roles})"
         )
 
