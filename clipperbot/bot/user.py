@@ -562,9 +562,10 @@ class Clipping(cm.Cog):
         """
         # Can use hyperlink markdown in description,
         # seems closest option to posting video.
-        # Actually, a direct link to the video without embed also seems to work,
-        # can be considered.
-        if direct_link:  # Does this work consistently? 🤔
+        # Actually, a direct link to the video without embed also works,
+        # if the video file is < 50 MB
+
+        if direct_link and clip.size < 50_000_000:
             return {"content": serveclips.get_link(clip.fpath)}
 
         clip_name = clip.fpath.split('/')[-1]
@@ -589,7 +590,7 @@ class Clipping(cm.Cog):
         else:
             file = dc.File(BytesIO(thumbnail), filename="image.jpg")
             embed.set_thumbnail(url="attachment://image.jpg")
-            kwargs = dict(file=file, embed=embed)
+            kwargs = dict(files=[file], embed=embed)
         return kwargs
 
 
@@ -850,8 +851,15 @@ class EditWindow(dc.ui.View):
                     sent_fpath = None
             else:
                 kwargs = await self.cog.prepare_embed(new_clip, direct_link=True)
-                kwargs["attachments"] = []
+                if "files" in kwargs:
+                    kwargs["attachments"] = kwargs["files"]
+                    del kwargs["files"]
+                else:
+                    kwargs["attachments"] = []
                 kwargs["embeds"] = []
+                if "embed" in kwargs:
+                    kwargs["embeds"].append(kwargs["embed"])
+                    del kwargs["embed"]
                 kwargs["view"] = og_view
                 try:
                     gf_t.cancel("gf_t interrupted")
