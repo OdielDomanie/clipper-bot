@@ -5,7 +5,8 @@ import re
 
 def ip_obf(og: re.Match[str]) -> str:
     numbers = og.group(0).split(".")
-    numbers[-1] = "xxx"
+    numbers[0] = "xxx"
+    numbers[1] = "xxx"
     return ".".join(numbers)
 
 
