@@ -23,6 +23,7 @@ from ..streams.stream import all_streams
 from ..utils import deltatime_to_str, rreload, thinking
 from ..webserver import serveclips
 from . import help_strings
+from .. import facedetection
 
 if TYPE_CHECKING:
     from ..streams.stream.base import Stream
@@ -398,6 +399,15 @@ class Clipping(cm.Cog):
                 clip = await clip_f(duration_t, audio_only=audio_only, screenshot=screenshot)
 
             if screenshot:
+                ss: Screenshot = clip  # type: ignore
+                try:
+                    face_png = facedetection.facedetect(ss.data, faces_n=100)
+                except facedetection.NoFaceException:
+                    pass
+                else:
+                    clip = Screenshot(
+                        ss.fname, face_png, ss.ago, ss.from_start
+                    )
                 return await self.send_ss(
                     ctx, clip, clipped_stream.unique_id, edit_view=edit_view  # type: ignore  # clip is Screenshot
                 )
@@ -958,6 +968,14 @@ class EditWindowSS(dc.ui.View):
             new_clip = await stream.clip_from_start(
                 new_ss, 1, audio_only=False, screenshot=True
             )
+            try:
+                face_png = facedetection.facedetect(new_clip.data, faces_n=100)
+            except facedetection.NoFaceException:
+                pass
+            else:
+                new_clip = Screenshot(
+                    new_clip.fname, face_png, new_clip.ago, new_clip.from_start
+                )
 
             msg = it.channel.get_partial_message(msg_id)  # type: ignore
 

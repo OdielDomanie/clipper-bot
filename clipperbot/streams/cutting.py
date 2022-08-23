@@ -199,6 +199,9 @@ async def screenshot(
 
     logger.info(shlex.join(command))
 
+    logger.info(f"Clip cmd: {shlex.join(command)}")
+    t_start = time.perf_counter()
+
     process = await aio.create_subprocess_exec(
         *command,
         stdout=aio.subprocess.PIPE,
@@ -206,6 +209,9 @@ async def screenshot(
     )
 
     ffmpeg_out, ffmpeg_err = await process.communicate()
+
+    t_end = time.perf_counter()
+    logger.info(f"Took {t_end-t_start:.3f}")
 
     ffmpeg_logger = logging.getLogger(logger.name + ".ffmpeg")
     encoding = sys.stderr.encoding or "utf-8"
