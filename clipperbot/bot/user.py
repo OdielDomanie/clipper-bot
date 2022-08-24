@@ -528,6 +528,7 @@ class Clipping(cm.Cog):
             if excess <= 0:
                 break
             logger.info(f"Removing clip file {f}")
+            excess -= os.path.getsize(f)
             os.remove(f)
 
     async def send_ss(
