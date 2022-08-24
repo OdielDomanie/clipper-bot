@@ -608,7 +608,7 @@ class Clipping(cm.Cog):
                 await reaction.message.delete()
 
     @cm.hybrid_command()
-    @ac.describe(message_id="Message id, message link of the clip.")
+    @ac.describe(message_id="Message link or message id of the clip.")
     async def edit(self, ctx: cm.Context, message_id: str):
         "Edit a posted clip."
         message_id_parsed = message_id.split("/")[-1]  # If a link, the end of a link is the id.
