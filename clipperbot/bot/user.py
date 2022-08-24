@@ -847,8 +847,12 @@ class EditWindow(dc.ui.View):
                     await msg.edit(
                         content=None, embeds=[], attachments=[file], view=og_view
                     )
-                    is_grey = False
-                    sent_fpath = None
+                is_grey = False
+                sent_fpath = None
+                try:
+                    os.remove(new_clip.fpath)
+                except OSError as e:
+                    logger.info(e)
             else:
                 kwargs = await self.cog.prepare_embed(new_clip, direct_link=True)
                 if "files" in kwargs:
@@ -877,6 +881,7 @@ class EditWindow(dc.ui.View):
             if is_grey:
                 await it.followup.edit_message(msg_id, view=og_view)
 
+        delete_clip_file(old_clip)
         sent_clip = _SentClip(
             sent_fpath,
             duration=new_clip.duration,
