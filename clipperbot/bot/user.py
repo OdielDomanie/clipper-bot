@@ -729,7 +729,7 @@ class EditWindow(dc.ui.View):
         if self.modes.get(it.message.id) == "end":
             await self.edit(it, 0, -10)
         else:
-            await self.edit(it, -10, +10)
+            await self.edit(it, -10, 0)
 
     @dc.ui.button(
         row=1, custom_id="editwindowsb", emoji="◀", style=dc.ButtonStyle.grey
@@ -739,7 +739,7 @@ class EditWindow(dc.ui.View):
         if self.modes.get(it.message.id) == "end":
             await self.edit(it, 0, -1)
         else:
-            await self.edit(it, -1, +1)
+            await self.edit(it, -1, 0)
 
     @dc.ui.button(
         row=1, custom_id="editwindowsf", emoji="▶", style=dc.ButtonStyle.grey
@@ -749,7 +749,7 @@ class EditWindow(dc.ui.View):
         if self.modes.get(it.message.id) == "end":
             await self.edit(it, 0, +1)
         else:
-            await self.edit(it, +1, -1)
+            await self.edit(it, +1, 0)
 
     @dc.ui.button(
         row=1, custom_id="editwindowbf", emoji="⏩", style=dc.ButtonStyle.grey
@@ -759,7 +759,7 @@ class EditWindow(dc.ui.View):
         if self.modes.get(it.message.id) == "end":
             await self.edit(it, 0, +10)
         else:
-            await self.edit(it, +10, -10)
+            await self.edit(it, +10, 0)
 
     async def edit(self, it: dc.Interaction, start_adj: int, end_adj: int):
         assert it.message
