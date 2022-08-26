@@ -103,6 +103,11 @@ class YTStream(ClipFromLivedownload, StreamWithActDL):
         assert self._start_time  # with correct order of operations and well behaved ytdl, this should hold.
         return self._start_time
 
+    @property
+    def end_time(self) -> int | None:
+        if duration := self._info_dict.get("duration"):
+            return self.start_time + int(duration)
+
     def start_download(self):
         "Start the live download."
         assert not self.active
