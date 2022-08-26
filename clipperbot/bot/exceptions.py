@@ -1,0 +1,2 @@
+class StreamNotLegal(Exception):
+    pass
