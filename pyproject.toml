@@ -24,6 +24,7 @@ dependencies = [
     "psutil",
     "opencv-python-headless",
     "python-dotenv",
+    "uvloop",
 ]
 
 [tool.setuptools]

@@ -1,6 +1,11 @@
 from sys import argv
+
+import uvloop
+
 from .bot.run import run as bot_run
 from .webserver.serveclips import run as webserver_run
+
+uvloop.install()
 
 
 if len(argv) == 1:
