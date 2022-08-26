@@ -141,7 +141,8 @@ class YTStream(ClipFromLivedownload, StreamWithActDL):
             raise
         finally:
             if not non_cancel_exception:
-                self._past_actdl.append((time.time(), self._download))
+                if self._download.start_time - time.time() > 20:
+                    self._past_actdl.append((time.time() - 20, self._download))
             self._download = None
             all_streams[self.unique_id] = self
             logger.debug(f"YTLiveDownload{(self.stream_url, output)} ended.")

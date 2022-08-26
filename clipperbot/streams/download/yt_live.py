@@ -108,7 +108,7 @@ class YTLiveDownload:
 
     async def _watch_file(self):
         "Returns when the output file stops increasing in size, or is deleted."
-        WATCH_FILE_POLL_INTV = 5
+        WATCH_FILE_POLL_INTV = 15
         file_size = 0
         while True:
             await aio.sleep(WATCH_FILE_POLL_INTV)
