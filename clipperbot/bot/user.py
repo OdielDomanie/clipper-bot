@@ -729,6 +729,48 @@ class EditWindow(dc.ui.View):
         await it.response.edit_message(view=view)
 
     @dc.ui.button(
+        row=1, custom_id="editwindowpopup", label="Type in", style=dc.ButtonStyle.grey
+    )
+    async def typein(self, it: dc.Interaction, button: dc.ui.Button):
+        "Pop up the edit modal."
+        assert it.message
+        msg_id = it.message.id
+        old_clip = self.cog.sent_clips[msg_id]
+
+        # Should be instantiation instead but w/e
+        class TypeinModal(dc.ui.Modal, title="Type in a new timestamp"):
+            ts_placeholder = deltatime_to_str(old_clip.from_start, True, False)
+            ts = dc.ui.TextInput(
+                label='Timestamp',
+                placeholder=ts_placeholder,
+                required=False,
+            )
+            if old_clip.duration <= 60:
+                duration_str = str(round(old_clip.duration))
+            else:
+                duration_str = deltatime_to_str(old_clip.duration, True, False)
+            duration = dc.ui.TextInput(
+                label='Duration',
+                placeholder=duration_str,
+                required=False,
+            )
+
+            async def on_submit(self_modal, interaction: dc.Interaction):  # type: ignore
+                new_ts = _to_deltatime(self_modal.ts.value or self_modal.ts_placeholder)
+                new_duration = _to_deltatime(self_modal.duration.value or self_modal.duration_str)
+                new_ts = round(new_ts)
+                new_duration = round(new_duration)
+
+                if new_duration > MAX_DURATION:
+                    raise cm.BadArgument(f"{new_duration} too big")
+
+                await interaction.response.defer()
+
+                await self.edit(it, 0, 0, ts=new_ts, duration=new_duration)
+
+        await it.response.send_modal(TypeinModal())
+
+    @dc.ui.button(
         row=1, custom_id="editwindowbb", emoji="⏪", style=dc.ButtonStyle.grey
     )
     async def big_back(self, it: dc.Interaction, button: dc.ui.Button):
@@ -768,19 +810,27 @@ class EditWindow(dc.ui.View):
         else:
             await self.edit(it, +10, 0)
 
-    async def edit(self, it: dc.Interaction, start_adj: int, end_adj: int):
+    async def edit(self, it: dc.Interaction, start_adj: int, end_adj: int, **kwargs):
         assert it.message
         msg_id = it.message.id
 
         old_clip = self.cog.sent_clips[msg_id]
         if it.user.id != old_clip.user_id:
-            await it.response.defer()
+            if not it.response.is_done():
+                await it.response.defer()
             return
 
         async with self.edit_locks.setdefault(msg_id, aio.Lock()):
-            await self._do_edit(it, start_adj, end_adj)
+            await self._do_edit(it, start_adj, end_adj, **kwargs)
 
-    async def _do_edit(self, it: dc.Interaction, start_adj: int, end_adj: int):
+    async def _do_edit(
+        self,
+        it: dc.Interaction,
+        start_adj: int,
+        end_adj: int,
+        ts: int | None = None,
+        duration: int | None = None,
+    ):
         assert it.message and it.guild and it.channel
 
         msg_id = it.message.id
@@ -812,15 +862,22 @@ class EditWindow(dc.ui.View):
             await it.followup.edit_message(msg_id, view=grey_view)
         gf_t = aio.create_task(grey_in_future())
         is_grey = False
-        await it.response.defer()
+        if not it.response.is_done():
+            await it.response.defer()
         try:
             new_ss = old_clip.from_start + start_adj
             new_t = old_clip.duration - start_adj + end_adj
+            if ts is not None:
+                new_ss = ts
+            if duration is not None:
+                new_t = duration
+
             logger.info(f"Doing edit: {new_ss, new_t}")
             if new_t < 1 or new_ss < 0:
                 return
             if (
                 start_adj >= 0 and end_adj <= 0 and old_clip.fpath and os.path.isfile(old_clip.fpath)
+                and (ts is None and duration is None)
             ):  # Can operate only on the clip.
                 dir_name = os.path.dirname(old_clip.fpath)
                 new_fpath = (
