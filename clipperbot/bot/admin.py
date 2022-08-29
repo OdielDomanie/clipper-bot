@@ -42,65 +42,65 @@ class _AddToPsd:
 
 class _SendEnabledMsg:
 
-        bot: dc.Client | None
+    bot: dc.Client | None
 
-        def __init__(self, txtchn: "PartialMessageableChannel"):
-            self.txtchn = txtchn
+    def __init__(self, txtchn: "PartialMessageableChannel"):
+        self.txtchn = txtchn
 
-        # Prevent spamming in the case of a bug, as these messages can be sent
-        # without user prompt.
-        # The constants should be replaced by configs.
-        RT_TIME = 8 * 3600
-        RT_REQS = 4
-        capturing_msgs = PersistentDict[int, int](DATABASE, "capturing_msgs")
-        auto_msg_ratelimits: dict[int, RateLimit] = {}  # {channel_id: RateLimit}
-        async def __call__(self, stream: "Stream"):
+    # Prevent spamming in the case of a bug, as these messages can be sent
+    # without user prompt.
+    # The constants should be replaced by configs.
+    RT_TIME = 8 * 3600
+    RT_REQS = 4
+    capturing_msgs = PersistentDict[int, int](DATABASE, "capturing_msgs")
+    auto_msg_ratelimits: dict[int, RateLimit] = {}  # {channel_id: RateLimit}
+    async def __call__(self, stream: "Stream"):
 
-            if isinstance(self.bot, cm.Bot):
-                admin_cog: Admin = self.bot.get_cog("Admin")  # type: ignore
-                blocked_streams = admin_cog.blocked_streams
-
-                try:
-                    g_id = self.txtchn.guild_id  # type: ignore
-                except AttributeError:
-                    g_id = self.txtchn.guild and self.txtchn.guild.id
-                if g_id:
-                    for t, blk_url in blocked_streams.get((g_id,), ()):
-                        if (
-                            (
-                                stream.stream_url == blk_url
-                                or stream.channel_url == blk_url
-                            )
-                            and time.time() < t
-                        ):
-                            return
+        if isinstance(self.bot, cm.Bot):
+            admin_cog: Admin = self.bot.get_cog("Admin")  # type: ignore
+            blocked_streams = admin_cog.blocked_streams
 
             try:
-                rate_limit = self.auto_msg_ratelimits.setdefault(
-                    self.txtchn.id,
-                    RateLimit(self.RT_TIME, self.RT_REQS),
-                )
-                skipping_msg = rate_limit.skip(self.txtchn.send)
-                msg = await skipping_msg(f"🔴 Clipping enabled for: {stream.title} (<{stream.stream_url}>)")
-                if msg is not None:
-                    if self.txtchn.id in self.capturing_msgs:
-                        try:
-                            old_msg = self.txtchn.get_partial_message(  # type: ignore
-                                self.capturing_msgs[self.txtchn.id]
-                            )
-                            await old_msg.delete()
-                        except Exception:
-                            pass
-                    self.capturing_msgs[self.txtchn.id] = msg.id
-            except Exception as e:
-                logger.error(f"Can't send \"stream started\" message: {e}")
+                g_id = self.txtchn.guild_id  # type: ignore
+            except AttributeError:
+                g_id = self.txtchn.guild and self.txtchn.guild.id
+            if g_id:
+                for t, blk_url in blocked_streams.get((g_id,), ()):
+                    if (
+                        (
+                            stream.stream_url == blk_url
+                            or stream.channel_url == blk_url
+                        )
+                        and time.time() < t
+                    ):
+                        return
 
-        def __getstate__(self):
-            return self.txtchn.id
+        try:
+            rate_limit = self.auto_msg_ratelimits.setdefault(
+                self.txtchn.id,
+                RateLimit(self.RT_TIME, self.RT_REQS),
+            )
+            skipping_msg = rate_limit.skip(self.txtchn.send)
+            msg = await skipping_msg(f"🔴 Clipping enabled for: {stream.title} (<{stream.stream_url}>)")
+            if msg is not None:
+                if self.txtchn.id in self.capturing_msgs:
+                    try:
+                        old_msg = self.txtchn.get_partial_message(  # type: ignore
+                            self.capturing_msgs[self.txtchn.id]
+                        )
+                        await old_msg.delete()
+                    except Exception:
+                        pass
+                self.capturing_msgs[self.txtchn.id] = msg.id
+        except Exception as e:
+            logger.error(f"Can't send \"stream started\" message: {e}")
 
-        def __setstate__(self, txtchn_id):
-            assert self.bot
-            self.txtchn = self.bot.get_partial_messageable(txtchn_id)
+    def __getstate__(self):
+        return self.txtchn.id
+
+    def __setstate__(self, txtchn_id):
+        assert self.bot
+        self.txtchn = self.bot.get_partial_messageable(txtchn_id)
 
 
 class Admin(cm.Cog):
