@@ -17,7 +17,9 @@ class CantDownload(Exception):
 
 
 class OutOfTimeRange(CantDownload):
-    pass
+    def __init__(self, *args: object, infodict=None) -> None:
+        super().__init__(*args)
+        self.infodict = infodict
 
 
 # Needs a yet unmerged commit to yt_dlp: https://github.com/yt-dlp/yt-dlp/issues/3451
@@ -71,12 +73,12 @@ def download_past(
         #     live_status = "is_live"
         # else:
         #     live_status = "processed"
-        live_status = extracted_info.get("live_status")
+        live_status = extracted_info.get("live_status")  # type: ignore
             # ydl.params["download_ranges"] = ranges
         logger.info(f"{url}: {live_status}")
         if live_status == "post_live" and ss + t > 4 * 3600:  # yt-dlp issue #1564
-            raise OutOfTimeRange()
+            raise OutOfTimeRange(infodict=extracted_info)
         # ie_result = ydl.process_ie_result(extracted_info)
         logger.info(f"Download completed: {url, ss, t}")
         logger.info(f"Took {time.perf_counter() - t_start:.3f} s")
-    return extracted_info, live_status
+    return extracted_info, live_status  # type: ignore

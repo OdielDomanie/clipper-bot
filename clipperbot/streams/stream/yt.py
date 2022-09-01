@@ -154,10 +154,15 @@ class YTStream(ClipFromLivedownload, StreamWithActDL):
             out_fpath = os.path.join(
                 self.download_dir, self.title.replace("/","_") + f"{ss}_{t}.mp4"
             )
-            info_dict, live_status = await aio.to_thread(
-                download_past, self.stream_url, out_fpath, ss, t,
-                info_dict= use_infodict and self.info_dict
-            )
+            try:
+                info_dict, live_status = await aio.to_thread(
+                    download_past, self.stream_url, out_fpath, ss, t,
+                    info_dict= use_infodict and self.info_dict
+                )
+            except OutOfTimeRange as e:
+                if e.infodict:
+                    self.info_dict = e.infodict
+                raise
             self.info_dict = info_dict
             if live_status != "is_live" and self.online == StreamStatus.ONLINE:
                 logger.error(f"live_status: {live_status} but stream_status={self.online}")
