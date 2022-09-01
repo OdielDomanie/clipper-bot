@@ -1,21 +1,22 @@
 import asyncio as aio
 import logging
 import time
-from typing import TYPE_CHECKING, Any, Collection, Optional
+from typing import TYPE_CHECKING, Any, Collection, Optional, cast
 
 import discord as dc
 import discord.app_commands as ac
 import discord.ext.commands as cm
 
 from .. import DATABASE
-from ..persistent_dict import OldPersistentDict, PersistentDict, PersistentSetDict
+from ..persistent_dict import (OldPersistentDict, PersistentDict,
+                               PersistentSetDict)
 from ..streams.stream import all_streams, clean_space
 from ..streams.stream.get_stream import get_stream
 from ..streams.url_finder import get_channel_url, san_stream_or_chn_url
 from ..streams.watcher.share import WatcherSharer, create_watch_sharer
 from ..utils import RateLimit, thinking
 from ..vtuber_names import get_all_chns_from_name, get_from_chn
-from . import help_strings
+from . import help_strings, upd_news
 from .exceptions import StreamNotLegal
 
 if TYPE_CHECKING:
@@ -42,38 +43,44 @@ class _AddToPsd:
 
 class _SendEnabledMsg:
 
-    bot: dc.Client | None
+    bot: "ClipperBot | None"
 
     def __init__(self, txtchn: "PartialMessageableChannel"):
-        self.txtchn = txtchn
+        self.txtchn: "PartialMessageableChannel" = txtchn
 
     # Prevent spamming in the case of a bug, as these messages can be sent
     # without user prompt.
     # The constants should be replaced by configs.
     RT_TIME = 8 * 3600
-    RT_REQS = 4
+    RT_REQS = 5
     capturing_msgs = PersistentDict[int, int](DATABASE, "capturing_msgs")
     auto_msg_ratelimits: dict[int, RateLimit] = {}  # {channel_id: RateLimit}
     async def __call__(self, stream: "Stream"):
 
-        if isinstance(self.bot, cm.Bot):
-            admin_cog: Admin = self.bot.get_cog("Admin")  # type: ignore
-            blocked_streams = admin_cog.blocked_streams
+        assert self.bot is not None
+        admin_cog: Admin = self.bot.get_cog("Admin")  # type: ignore
+        blocked_streams = admin_cog.blocked_streams
 
-            try:
-                g_id = self.txtchn.guild_id  # type: ignore
-            except AttributeError:
-                g_id = self.txtchn.guild and self.txtchn.guild.id
-            if g_id:
-                for t, blk_url in blocked_streams.get((g_id,), ()):
-                    if (
-                        (
-                            stream.stream_url == blk_url
-                            or stream.channel_url == blk_url
-                        )
-                        and time.time() < t
-                    ):
-                        return
+        try:
+            g_id = self.txtchn.guild_id  # type: ignore
+        except AttributeError:
+            g_id = self.txtchn.guild and self.txtchn.guild.id
+
+        if not g_id:
+            full_chn = await self.bot.fetch_channel(self.txtchn.id)
+            g_id = full_chn.guild.id  # type: ignore
+            full_chn = cast("PartialMessageableChannel", full_chn)
+            self.txtchn = full_chn
+
+        for t, blk_url in blocked_streams.get((g_id,), ()):
+            if (
+                (
+                    stream.stream_url == blk_url
+                    or stream.channel_url == blk_url
+                )
+                and time.time() < t
+            ):
+                return
 
         try:
             rate_limit = self.auto_msg_ratelimits.setdefault(
@@ -82,6 +89,10 @@ class _SendEnabledMsg:
             )
             skipping_msg = rate_limit.skip(self.txtchn.send)
             msg = await skipping_msg(f"🔴 Clipping enabled for: {stream.title} (<{stream.stream_url}>)")
+
+            # Update news
+            rate_limit.skip_f(upd_news.send_news)(self.txtchn, g_id, self.bot)
+
             if msg is not None:
                 if self.txtchn.id in self.capturing_msgs:
                     try:

@@ -11,7 +11,7 @@ import threading
 import time
 from types import ModuleType
 from typing import (Any, Awaitable, Callable, Collection, Coroutine,
-                    MutableMapping, TypeVar)
+                    MutableMapping, TypeVar, cast)
 
 import dateutil.parser
 import discord as dc
@@ -76,6 +76,18 @@ class RateLimit:
                     return await cor(*args, **kwargs)
         return wrapped
 
+    F = TypeVar("F", bound=Callable)
+    def skip_f(self, fun: F) -> F:
+        "Returns function that will skip operation if within ratelimit."
+        @functools.wraps(fun)
+        def wrapped(*args, **kwargs):
+            if self._wait_time():
+                self.logger.info(f"Skipping {fun.__name__} .")
+                return
+            else:
+                self.pool.append(time.monotonic())
+                return fun(*args, **kwargs)
+        return cast(F, wrapped)
 
 class WeighedRateLimit:
     def __init__(self, interval: dt.timedelta, limit: int):

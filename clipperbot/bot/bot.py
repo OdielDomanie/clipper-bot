@@ -45,6 +45,9 @@ class ClipperBot(cm.Bot):
         )
         self.add_check(self.check_perms)
 
+        self.upd_news_unsent = PersistentDict[int, bool](
+            self.database, "upd_news_unsent", cache_duration=0*3600)
+
     async def setup_hook(self):
         await self.add_cog(AdminCog(self))
 
@@ -62,6 +65,9 @@ class ClipperBot(cm.Bot):
         logger.info("Ready.")
         for g in self.guilds:
             await self.on_guild_join(g)
+
+        for guild in self.guilds:
+            self.upd_news_unsent.setdefault(guild.id, False)
 
     async def on_guild_join(self, guild):
         # Intents.guilds
