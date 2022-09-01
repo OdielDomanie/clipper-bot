@@ -278,14 +278,14 @@ class Clipping(cm.Cog):
                         ctx.channel.id, stream,
                     )
                 except StreamNotLegal:
-                    if ctx.interaction: await ctx.interaction.delete_original_message()
+                    if ctx.interaction: await ctx.interaction.delete_original_response()
                     await ctx.reply(
                         "Given stream had been not captured or it is not currently registered.",
                         ephemeral=True,
                     )
                     return
                 if not clipped_stream:
-                    if ctx.interaction: await ctx.interaction.delete_original_message()
+                    if ctx.interaction: await ctx.interaction.delete_original_response()
                     await ctx.reply(
                         "I couldn't find the stream 😕",
                         ephemeral=True,
@@ -427,7 +427,7 @@ class Clipping(cm.Cog):
 
         except DownloadCacheMissing:
             if ctx.interaction:
-                await ctx.interaction.delete_original_message()
+                await ctx.interaction.delete_original_response()
                 if "twitch" in clipped_stream.stream_url:
                     await ctx.send(
                         "The time range is no longer in my cache 😕"
@@ -520,7 +520,7 @@ class Clipping(cm.Cog):
             delete_clip_file(clip)
 
             if ctx.interaction:
-                await ctx.interaction.delete_original_message()
+                await ctx.interaction.delete_original_response()
             await ctx.reply(
                 f"File size: {clip.size/(1024*1024):.2f} MB, cannot post as attachment.",
                 ephemeral=True,

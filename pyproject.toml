@@ -15,7 +15,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
 ]
 dependencies = [
-    "discord.py @ git+https://github.com/Rapptz/discord.py.git",
+    "discord.py @ git+https://github.com/Rapptz/discord.py.git@bdda31307b2892c0aafa2b8eb5bcfad7316452a9",
     "yt-dlp @ git+https://github.com/OdielDomanie/yt-dlp.git",
     "starlette",
     "uvicorn",

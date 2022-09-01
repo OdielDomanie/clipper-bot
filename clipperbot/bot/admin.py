@@ -213,7 +213,7 @@ class Admin(cm.Cog):
 
         if not san_urls:
             if ctx.interaction:
-                await ctx.interaction.delete_original_message()
+                await ctx.interaction.delete_original_response()
             await ctx.send(f"{channel} is not a valid channel name or url 🤨", ephemeral=True)
             return
 
@@ -282,7 +282,7 @@ class Admin(cm.Cog):
             fitting_onetime = [w for w in onetime if w.is_alias(channel)]
             if len(fitting_onetime) == 0:
                 if ctx.interaction:
-                    await ctx.interaction.delete_original_message()
+                    await ctx.interaction.delete_original_response()
                 await ctx.send(f"`{channel}` is not any of the registered channels", ephemeral=True)
                 return
             else:
@@ -324,14 +324,14 @@ class Admin(cm.Cog):
             san_url = san_stream_or_chn_url(stream_name)
         except ValueError as e:
             if ctx.interaction:
-                await ctx.interaction.delete_original_message()
+                await ctx.interaction.delete_original_response()
             await ctx.send(f"<{stream_name}> is not a valid url 🤨", ephemeral=True)
             return
 
         for ws in self.registers.get((ctx.channel.id,), ()):
             if ws.active_stream and (ws.active_stream.stream_url == san_url or ws.target == san_url):
                 if ctx.interaction:
-                    await ctx.interaction.delete_original_message()
+                    await ctx.interaction.delete_original_response()
                 await ctx.send(f"<{san_url}> is already enabled on this text channel 🤨", ephemeral=True)
                 return
 
