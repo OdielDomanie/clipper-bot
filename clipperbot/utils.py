@@ -115,8 +115,8 @@ def deltatime_to_str(dt: float, colon=False, millisecs=True, show_hours=False):
     seconds = int(dt) % 60
     micro_secs = dt % 1
     seperator = ":" if colon else "."
-    if show_hours:
-        hours = minutes // 60
+    hours = minutes // 60
+    if show_hours and hours != 0:
         minutes %= 60
         res = f"{hours}{seperator}{minutes:02}{seperator}{seconds:02}"
         show_hours = hours != 0

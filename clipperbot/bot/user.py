@@ -739,7 +739,7 @@ class EditWindow(dc.ui.View):
 
         # Should be instantiation instead but w/e
         class TypeinModal(dc.ui.Modal, title="Type in a new timestamp"):
-            ts_placeholder = deltatime_to_str(old_clip.from_start, True, False)
+            ts_placeholder = deltatime_to_str(old_clip.from_start, True, False, True)
             ts = dc.ui.TextInput(
                 label='Timestamp',
                 placeholder=ts_placeholder,
