@@ -82,36 +82,38 @@ class Poller(Watcher):
                             logger.exception(e)
                 self.stream_off.clear()
                 self.stream_on.set()
-                assert isinstance(s, StreamWithActDL)
-                self.active_stream = s
-                while True:
-                    logger.info(f"Starting download for: {self.target}")
-                    start_download(s)
-                    try:
-                        logger.debug("Waiting for download to start.")
-                        await s.actdl_on.wait()  # There is a race condition here but whatever
-                        logger.debug(f"Waiting for download to end for {self.target}")
-                        await s.actdl_off.wait()
-                    finally:
-                        stop_download(s)
-                        logger.info(f"Stream download ended: {self.target}")
-                    # Did it really end?
-                    try:
-                        if not await self._poll():
-                            logger.debug(f"Poll returned None after dl ended: {self.target}")
+                try:
+                    assert isinstance(s, StreamWithActDL)
+                    self.active_stream = s
+                    while True:
+                        logger.info(f"Starting download for: {self.target}")
+                        start_download(s)
+                        try:
+                            logger.debug("Waiting for download to start.")
+                            await s.actdl_on.wait()  # There is a race condition here but whatever
+                            logger.debug(f"Waiting for download to end for {self.target}")
+                            await s.actdl_off.wait()
+                        finally:
+                            stop_download(s)
+                            logger.info(f"Stream download ended: {self.target}")
+                        # Did it really end?
+                        try:
+                            if not await self._poll():
+                                logger.debug(f"Poll returned None after dl ended: {self.target}")
+                                break
+                            else:
+                                logger.warning(f"Stream dl ended but is still online: {self.target}")
+                                await aio.sleep(self.poll_period/3)
+                        except Exception as e:
+                            logger.exception(e)
                             break
-                        else:
-                            logger.warning(f"Stream dl ended but is still online: {self.target}")
-                            await aio.sleep(self.poll_period/3)
-                    except Exception as e:
-                        logger.exception(e)
-                        break
-                # Stream ended
-                logger.info(f"Stream ended: {self.target}")
-                s.online = StreamStatus.PAST
-                self.stream_on.clear()
-                self.stream_off.set()
-                self.active_stream = None
+                    # Stream ended
+                    logger.info(f"Stream ended: {self.target}")
+                    s.online = StreamStatus.PAST
+                finally:
+                    self.stream_on.clear()
+                    self.stream_off.set()
+                    self.active_stream = None
             await aio.sleep(self.poll_period)
 
 
