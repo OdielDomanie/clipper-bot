@@ -1,11 +1,11 @@
 import asyncio as aio
 import functools
 from io import BytesIO
+import itertools
 import logging
 import os
 import pickle
 import random
-from dataclasses import dataclass
 import time
 from typing import TYPE_CHECKING, Optional
 
@@ -15,6 +15,7 @@ from discord import app_commands as ac
 from discord.ext import commands as cm
 
 from .. import DEF_AGO, DEF_DURATION, MAX_CLIPS_SIZE, MAX_DURATION
+from .. import facedetection
 from ..persistent_dict import PersistentDict
 from ..streams import cutting
 from ..streams.clip import Clip, Screenshot
@@ -23,7 +24,7 @@ from ..streams.stream import all_streams
 from ..utils import deltatime_to_str, rreload, thinking
 from ..webserver import serveclips
 from . import help_strings
-from .. import facedetection
+from .sent_clips import SentClip, SentSS
 
 if TYPE_CHECKING:
     from ..streams.stream.base import Stream
@@ -34,30 +35,10 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-@dataclass(eq=True, frozen=True)
-class _SentClip:
-    fpath: str | None
-    duration: float
-    ago: float | None
-    from_start: float
-    audio_only: bool
-    channel_id: int
-    msg_id: int
-    user_id: int
-    stream_uid: object
+_SentClip = SentClip  # Needed for pickling to work after name change
+_SentSS = SentSS
 
-
-@dataclass(eq=True, frozen=True)
-class _SentSS:
-    ago: float | None
-    from_start: float
-    channel_id: int
-    msg_id: int
-    user_id: int
-    stream_uid: object
-
-
-def delete_clip_file(clip: "Clip | _SentClip"):
+def delete_clip_file(clip: "Clip | SentClip"):
     if not clip.fpath:
         return
     try:
@@ -89,13 +70,13 @@ class Clipping(cm.Cog):
 
     def __init__(self, bot: "ClipperBot"):
         self.bot = bot
-        self.sent_clips = PersistentDict[int, _SentClip](
+        self.sent_clips = PersistentDict[int, SentClip](
             bot.database,
             "sent_clips",
             load_v=pickle.loads,
             dump_v=pickle.dumps,
         )
-        self.sent_screenshots = PersistentDict[int, _SentSS](
+        self.sent_screenshots = PersistentDict[int, SentSS](
             bot.database,
             "sent_screenshots",
             load_v=pickle.loads,
@@ -117,10 +98,19 @@ class Clipping(cm.Cog):
         "Return streamer names."
         AUTOCOMP_LIM = 3  # Discord's limit is 25, but a lower limit looks better
         # First look at the latest stream
-        assert it.channel_id
+        assert it.channel
+
+        if isinstance(it.channel, dc.Thread):
+            assert it.channel.parent
+            cap_streams = itertools.chain(
+                self.admin_cog.captured_streams.get((it.channel.id,), ()),
+                self.admin_cog.captured_streams.get((it.channel.parent.id,), ())
+            )
+        else:
+            cap_streams = self.admin_cog.captured_streams.get((it.channel.id,), ())
 
         p_capped_stream_uid = sorted(
-            self.admin_cog.captured_streams[it.channel_id,],
+            cap_streams,
             key=lambda ps: (
                 (s := all_streams[ps[1]])
                 and (s.active, s.end_time or s.start_time)
@@ -253,7 +243,7 @@ class Clipping(cm.Cog):
             duration_t = DEF_DURATION
 
         # Find the stream
-        streams = self.admin_cog.get_streams(ctx.channel.id)
+        streams = self.admin_cog.get_streams(ctx.channel)
         if not stream:
             try:
                 p, clipped_stream = max(
@@ -275,7 +265,7 @@ class Clipping(cm.Cog):
             if not clipped_stream:
                 try:
                     clipped_stream: "Stream" | None = await self.admin_cog.get_stream_if_legal(
-                        ctx.channel.id, stream,
+                        ctx.channel, stream,
                     )
                 except StreamNotLegal:
                     if ctx.interaction: await ctx.interaction.delete_original_response()
@@ -340,7 +330,7 @@ class Clipping(cm.Cog):
 
         ago_t += 2
 
-        streams= self.admin_cog.get_streams(ctx.channel.id)
+        streams= self.admin_cog.get_streams(ctx.channel)
 
         try:
             p, clipped_stream = max(
@@ -461,7 +451,7 @@ class Clipping(cm.Cog):
                 except dc.Forbidden:
                     pass
 
-                sent_clip = _SentClip(
+                sent_clip = SentClip(
                     None,
                     duration=clip.duration,
                     ago=clip.ago,
@@ -499,7 +489,7 @@ class Clipping(cm.Cog):
             except dc.Forbidden:
                 pass
 
-            sent_clip = _SentClip(
+            sent_clip = SentClip(
                 None,
                 duration=clip.duration,
                 ago=clip.ago,
@@ -553,7 +543,7 @@ class Clipping(cm.Cog):
         except dc.Forbidden:
             pass
 
-        sent_clip = _SentSS(
+        sent_clip = SentSS(
             ago=clip.ago,
             from_start=clip.from_start,
             channel_id=ctx.channel.id,
@@ -612,6 +602,10 @@ class Clipping(cm.Cog):
                 and user.id == clip.user_id
             ):
                 await reaction.message.delete()
+                try:
+                    del self.sent_clips[reaction.message.id]
+                except KeyError:
+                    del self.sent_screenshots[reaction.message.id]
 
     @cm.hybrid_command()
     @ac.describe(message_id="Message link or message id of the clip.")
@@ -665,7 +659,7 @@ class Clipping(cm.Cog):
     async def ss(self, ctx: cm.Context):
         "Screenshot! (with anime face detection)"
 
-        streams= self.admin_cog.get_streams(ctx.channel.id)
+        streams= self.admin_cog.get_streams(ctx.channel)
 
         try:
             p, clipped_stream = max(
@@ -946,7 +940,7 @@ class EditWindow(dc.ui.View):
                 await it.followup.edit_message(msg_id, view=og_view)
 
         delete_clip_file(old_clip)
-        sent_clip = _SentClip(
+        sent_clip = SentClip(
             sent_fpath,
             duration=new_clip.duration,
             ago=new_clip.ago,
@@ -1071,7 +1065,7 @@ class EditWindowSS(dc.ui.View):
             if is_grey:
                 await it.followup.edit_message(msg_id, view=og_view)
 
-        sent_clip = _SentSS(
+        sent_clip = SentSS(
             ago=new_clip.ago,
             from_start=new_clip.from_start,
             channel_id=it.channel.id,

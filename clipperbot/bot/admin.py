@@ -1,4 +1,5 @@
 import asyncio as aio
+import itertools
 import logging
 import time
 from typing import TYPE_CHECKING, Any, Collection, Optional, cast
@@ -18,11 +19,13 @@ from ..utils import RateLimit, thinking
 from ..vtuber_names import get_all_chns_from_name, get_from_chn
 from . import help_strings, upd_news
 from .exceptions import StreamNotLegal
+from .sent_clips import SentClip, SentSS
 
 if TYPE_CHECKING:
-    from discord.abc import PartialMessageableChannel
+    from discord.abc import PartialMessageableChannel, MessageableChannel
     from ..streams.stream.base import Stream
     from .bot import ClipperBot
+    from .user import Clipping
 
 
 logger = logging.getLogger(__name__)
@@ -211,7 +214,10 @@ class Admin(cm.Cog):
         """Make this channel available for clipping. Leave `channel` empty to view the currently registered."
         When `channel_url` goes live, the bot will automatically start capturing.
         """
-        ctx.channel
+        # Don't /register in threads
+        if not ctx.channel.type == dc.ChannelType.text:
+            await ctx.send("Can't use `register` on threads, try `stream` instead.")
+            return
         if not channel:
             current = self._registered_chns(ctx.channel.id)
             if current:
@@ -360,23 +366,33 @@ class Admin(cm.Cog):
             self.onetime_streams[ctx.channel.id].remove(ws)
             ws.stop()
 
-    def get_streams(self, chn_id: int) -> Collection[tuple[float, "Stream"]]:
+    def get_streams(self, txt_chn: "MessageableChannel") -> Collection[tuple[float, "Stream"]]:
         "Return streams that can be clipped in this txt channel that already are in the cache."
         res = set[tuple[float, "Stream"]]()
         for s in all_streams.values():
-            if s.channel_url in [w.targets_url for w in self.registers.get((chn_id,), ())]:
+            if s.channel_url in [w.targets_url for w in self.registers.get((txt_chn.id,), ())]:
                 res.add((0, s))
 
-        for p, suid in self.captured_streams[chn_id,]:
+        for p, suid in self.captured_streams.get((txt_chn.id,), ()):
             res.add((p, all_streams[suid]))
+
+
+        if isinstance(txt_chn, dc.Thread):
+            if isinstance(txt_chn.parent, dc.TextChannel):
+                inh_strms = self.get_streams(txt_chn.parent)
+                res.difference_update(inh_strms)
+                for p, s in inh_strms:
+                    res.add((p + 1, s))
+            else:
+                logger.error(f"Parent of {txt_chn.name, txt_chn.guild.name} is {txt_chn.parent}")
 
         return res
 
-    async def get_stream_if_legal(self, chn_id: int, stream_name: str) -> "Stream | None":
+    async def get_stream_if_legal(self, txt_chn: "MessageableChannel", stream_name: str) -> "Stream | None":
         """Return the stream if found.
         Can raise StreamNotLegal.
         """
-        for _, s in self.get_streams(chn_id):
+        for _, s in self.get_streams(txt_chn):
             if s.stream_url == stream_name or s.title == stream_name:
                 return s
 
@@ -385,8 +401,8 @@ class Admin(cm.Cog):
             return None
 
         if (
-            s in self.captured_streams.get((chn_id,), ())
-            or s.channel_url in [w.targets_url for w in self.registers.get((chn_id,), ())]
+            s in self.captured_streams.get((txt_chn.id,), ())
+            or s.channel_url in [w.targets_url for w in self.registers.get((txt_chn.id,), ())]
         ):
             return s
         else:
@@ -526,3 +542,116 @@ class Admin(cm.Cog):
                 f'<{url}>' for t, url in self.blocked_streams[ctx.guild.id,]
             )
         )
+
+    async def stream_autocomp(self, it: dc.Interaction, curr: str) -> list[ac.Choice]:
+        "Return streamer names."
+        AUTOCOMP_LIM = 25  # Discord's limit is 25, but a lower limit looks better
+        # First look at the latest stream
+        assert it.channel_id
+        assert it.guild
+
+        guild_cap_strms = itertools.chain(
+            *[self.captured_streams.get((chn.id,), ())
+            for chn in it.guild.channels]
+        )
+        guild_cap_strms = set(guild_cap_strms)
+        p_capped_stream_uid = sorted(
+            guild_cap_strms,
+            key=lambda ps: (
+                (s := all_streams[ps[1]])
+                and (s.active, s.end_time or s.start_time)
+            ),
+            reverse=True
+        )
+
+        res = list[ac.Choice]()
+        for p, uid in p_capped_stream_uid:
+            s = all_streams[uid]
+            if s.is_alias(curr):
+                res.append(ac.Choice(name=s.title, value=s.stream_url))
+            if len(res) >= AUTOCOMP_LIM:
+                break
+        return res
+
+    @cm.hybrid_command()
+    @ac.autocomplete(stream=stream_autocomp)
+    @ac.describe(
+        channel="Text channel to get the clips from.",
+        stream="Stream url of the clips.",
+    )
+    async def repost_clips(self, ctx: cm.Context, channel: dc.TextChannel, stream: Optional[str]):
+        "Post the clips already made in a channel in this text channel."
+        user_cog = cast("Clipping", self.bot.get_cog("Clipping"))
+        chsn_strm = None
+        for s in all_streams.values():
+            if s.stream_url == stream:
+                chsn_strm = s
+                break
+        if not chsn_strm:
+            await ctx.reply("Couldn't find the stream 😓")
+            return
+
+        clips = set["SentClip"]()
+        for clip in user_cog.sent_clips.values():
+            try:
+                c_uid = clip.stream_uid
+            except AttributeError:
+                continue
+            if clip.channel_id == channel.id and chsn_strm.unique_id == c_uid:
+                clips.add(clip)
+
+        scrnshts = set["SentSS"]()
+        for ss in user_cog.sent_screenshots.values():
+            try:
+                c_uid = ss.stream_uid
+            except AttributeError:
+                continue
+            if ss.channel_id == channel.id and chsn_strm.unique_id == c_uid:
+                scrnshts.add(ss)
+
+        await ctx.defer()
+
+        sent_c_ss = itertools.chain(clips, scrnshts)
+        # sent_c_ss = zip(c_ss_chain, ["c"]*len(clips) + ["s"]*len(scrnshts))
+        chron_sent = sorted(sent_c_ss, key=lambda c: c.from_start)
+
+        for clip in chron_sent:
+            try:
+                og_msg = await channel.fetch_message(clip.msg_id)
+            except dc.NotFound:
+                continue
+            if "\n" in og_msg.content:
+                continue
+            elif og_msg.content:
+                new_msg = await ctx.channel.send(
+                    content=f"{og_msg.jump_url}\n---\n{og_msg.content}"
+                )
+            elif og_msg.embeds:
+                new_msg = await ctx.channel.send(
+                    content=f"{og_msg.jump_url}\n---", embed=og_msg.embeds[0]
+                )
+            else:
+                new_msg = await ctx.channel.send(
+                    content=f"{og_msg.jump_url}\n---\n{og_msg.attachments[0].url}"
+                )
+            try:
+                await new_msg.add_reaction("❌")
+            except dc.Forbidden:
+                pass
+
+            clip_d = clip.__dict__.copy()
+            clip_d["channel_id"] = ctx.channel.id
+            clip_d["msg_id"] = new_msg.id
+            if isinstance(clip, SentClip):
+                new_clip = SentClip(**clip_d)
+                user_cog.sent_clips[new_msg.id] = new_clip
+            else:
+                new_clip = SentSS(**clip_d)
+                user_cog.sent_screenshots[new_msg.id] = new_clip
+
+        await ctx.reply("Done re-posting the clips 👍")
+
+        # TODO: Ignore deleted clips (404 errors)
+        # TODO: Ignore clips that were posted with this command.
+        # TODO: Check for same guild
+        # TODO: Text only linked clips
