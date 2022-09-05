@@ -651,8 +651,3 @@ class Admin(cm.Cog):
                 user_cog.sent_screenshots[new_msg.id] = new_clip
 
         await ctx.reply("Done re-posting the clips 👍")
-
-        # TODO: Ignore deleted clips (404 errors)
-        # TODO: Ignore clips that were posted with this command.
-        # TODO: Check for same guild
-        # TODO: Text only linked clips
