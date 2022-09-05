@@ -296,7 +296,7 @@ class Admin(cm.Cog):
     @thinking
     async def unregister(self, ctx: cm.Context, channel: str):
         "Unregister a channel from this text channel."
-        registers = self.registers[ctx.channel.id,]
+        registers = self.registers.get((ctx.channel.id,), ())
         fitting_registers = [w for w in registers if w.is_alias(channel)]
         if len(fitting_registers) == 0:
             onetime = self.onetime_streams.get(ctx.channel.id, ())
