@@ -25,7 +25,14 @@ class ClipperBot(cm.Bot):
         # {guild_id: prefix}
         self.prefixes = OldPersistentDict(database, "prefixes", int, str)
 
-        super().__init__(self._get_prefix, description=bot_description, intents=intents, **options)
+        help_cmd = cm.DefaultHelpCommand(show_parameter_descriptions=False)
+
+        super().__init__(
+            self._get_prefix,
+            description=bot_description,
+            intents=intents,
+            help_command=help_cmd,
+            **options)
 
         self.guild_whitelist = OldPersistentDict(
             database,
