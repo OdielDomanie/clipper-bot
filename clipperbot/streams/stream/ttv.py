@@ -79,6 +79,7 @@ class TTVStream(ClipFromLivedownload, StreamWithActDL):
         self.channel_url = "https://www.twitch.tv/" + info_dict["uploader_id"]
         self._start_time = start_time_from_infodict(info_dict)
         self.unique_id = ttv_stream_uid(info_dict)
+        self._last_dl_end: float | None = None
 
         self._download: YTLiveDownload | None = None
         self._download_task = None
@@ -131,6 +132,8 @@ class TTVStream(ClipFromLivedownload, StreamWithActDL):
     def end_time(self) -> int | None:
         if duration := self._info_dict.get("duration"):
             return self.start_time + int(duration)
+        elif not self.online and self._last_dl_end:
+            return int(self._last_dl_end)
 
     def start_download(self):
         "Start the live download."
@@ -161,13 +164,14 @@ class TTVStream(ClipFromLivedownload, StreamWithActDL):
             raise
         finally:
             if not non_cancel_exception:
-                if self._download.start_time - time.time() > 20:
+                if time.time() - self._download.start_time > 20:
                     self._past_actdl.append((time.time() - 20, self._download))
             self._download = None
             all_streams[self.unique_id] = self
             logger.debug(f"YTLiveDownload{(self.stream_url, output)} ended.")
             self.actdl_on.clear()
             self.actdl_off.set()
+            self._last_dl_end = time.time()
 
     async def _download_past(self, ss: int, t: int) -> str:
         raise DownloadCacheMissing()
@@ -310,6 +314,7 @@ class TTVStream(ClipFromLivedownload, StreamWithActDL):
 
     def __setstate__(self, state: dict):
         self.__dict__.update(state)
+        self.__dict__.setdefault("_last_dl_end", None)
         self._download = None
         self._download_task = None
         self._pastdl_lock = aio.Lock()
