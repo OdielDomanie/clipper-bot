@@ -70,7 +70,10 @@ class _SendEnabledMsg:
             g_id = self.txtchn.guild and self.txtchn.guild.id
 
         if not g_id:
-            full_chn = await self.bot.fetch_channel(self.txtchn.id)
+            full_chn = self.bot.get_channel(self.txtchn.id)
+            if full_chn is None:
+                raise Exception(f"Can't get channel of {self.txtchn.id}")
+
             g_id = full_chn.guild.id  # type: ignore
             full_chn = cast("PartialMessageableChannel", full_chn)
             self.txtchn = full_chn
@@ -107,7 +110,7 @@ class _SendEnabledMsg:
                         pass
                 self.capturing_msgs[self.txtchn.id] = msg.id
         except Exception as e:
-            logger.error(f"Can't send \"stream started\" message: {e}")
+            logger.error(f"Can't send \"stream started\" message to {self.txtchn.id}: {e}")
 
     def __getstate__(self):
         return self.txtchn.id
