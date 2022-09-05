@@ -168,6 +168,7 @@ class Admin(cm.Cog):
                     logger.exception(e)
                 else:
                     self.registers.add((txtchn_id,), w)
+        self.old_channel_mapping.drop()
         ###
 
         # WatcherSharers should always be active. We deal with the unpickled ones here.
