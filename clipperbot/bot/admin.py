@@ -654,3 +654,14 @@ class Admin(cm.Cog):
                 user_cog.sent_screenshots[new_msg.id] = new_clip
 
         await ctx.reply("Done re-posting the clips 👍")
+
+    @ac.command(name="disable-legacy-commands")
+    @ac.describe(disabled="If True, disable legacy commands.")
+    async def disable_legacy_commands(self, it: dc.Interaction, disabled: bool):
+        "Disable or enable legace (non-slash) commands."
+        assert it.guild_id
+        self.bot.legacy_disabled[it.guild_id] = disabled
+        if disabled:
+            await it.response.send_message("Legacy commands are disabled.")
+        else:
+            await it.response.send_message("Legacy commands are enabled.")

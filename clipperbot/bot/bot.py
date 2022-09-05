@@ -45,10 +45,14 @@ class ClipperBot(cm.Bot):
         self.command_txtchn_perms = OldPersistentSetDict(
             database, "command_txtchn", 2
         )
+        self.add_check(self.check_disabled)
         self.add_check(self.check_perms)
 
         self.upd_news_unsent = PersistentDict[int, bool](
             self.database, "upd_news_unsent", cache_duration=0*3600)
+
+        # {guild_id: disabled}
+        self.legacy_disabled = PersistentDict[int, bool](self.database, "legacy_disabled")
 
     async def setup_hook(self):
         await self.add_cog(AdminCog(self))
@@ -198,3 +202,11 @@ class ClipperBot(cm.Bot):
             return [custom_prefix, self.default_prefix]
         except KeyError:
             return [self.default_prefix]
+
+    def check_disabled(self, ctx: cm.Context):
+        if not ctx.guild:
+            return False
+        if ctx.interaction:
+            return True
+        else:
+            return not self.legacy_disabled.get(ctx.guild.id, False)
