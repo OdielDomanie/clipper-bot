@@ -27,9 +27,11 @@ class ClipperBot(cm.Bot):
 
         super().__init__(self._get_prefix, description=bot_description, intents=intents, **options)
 
-        self.guild_whitelist = PersistentDict(
+        self.guild_whitelist = OldPersistentDict(
             database,
             "guild_whitelist",
+            int,
+            str,
             cache_duration=60
         )
 
