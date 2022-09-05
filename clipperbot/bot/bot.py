@@ -78,8 +78,13 @@ class ClipperBot(cm.Bot):
             await guild.leave()
 
     async def _log_command(self, ctx: cm.Context):
+        if ctx.interaction and ctx.interaction.data:
+            cmd_msg = (ctx.interaction.data.get("name"), ctx.interaction.data.get("options"))
+        else:
+            cmd_msg = ctx.message.content
+
         logger.info(
-            f"Invoking command {ctx.message.content} in {ctx.channel}, {ctx.guild}."
+            f"Invoking command {cmd_msg} in {ctx.channel}, {ctx.guild}."
             f" (roles: {isinstance(ctx.author, dc.Member) and ctx.author.roles})"
         )
 
