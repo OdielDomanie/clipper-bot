@@ -89,6 +89,8 @@ class ClipperBot(cm.Bot):
                 f"Joined not whitelisted guild {guild.name}. Leaving."
             )
             await guild.leave()
+        else:
+            logger.info(f"In guild: {guild.name}")
 
     async def _log_command(self, ctx: cm.Context):
         if ctx.interaction and ctx.interaction.data:
