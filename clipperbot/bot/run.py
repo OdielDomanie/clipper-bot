@@ -1,31 +1,46 @@
 import logging
-from . import ClipBot
+from .bot import ClipperBot
+import discord as dc
+import os
+import dotenv
 
-from .. import LOG_FILE, LOG_LVL, DEFAULT_PREFIX, DATABASE, TOKEN, OWNER_ID
+from .. import LOG_LVL, DEFAULT_PREFIX, DATABASE
 
 
-handler = logging.FileHandler(LOG_FILE)
+handler = logging.StreamHandler()
 handler.setFormatter(
     logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s')
 )
 
 logger_asyncio = logging.getLogger("asyncio")
-logger_asyncio.setLevel(logging.WARNING)
+logger_asyncio.setLevel(logging.INFO)
 logger_asyncio.addHandler(handler)
 
-logger_clipper = logging.getLogger("clipping")
+logger_clipper = logging.getLogger("clipperbot")
 logger_clipper.setLevel(LOG_LVL)
 logger_clipper.addHandler(handler)
 
 logger_clipper = logging.getLogger("discord")
-logger_clipper.setLevel(LOG_LVL)
+logger_clipper.setLevel(logging.INFO)
 logger_clipper.addHandler(handler)
 
 
+dotenv.load_dotenv()
+
+DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
+assert DISCORD_TOKEN
+
+intents = dc.Intents(
+            guilds=True,
+            guild_messages=True,
+            guild_reactions=True,
+            message_content=True,  # Only needed for classic commands
+        )
+
 def run():
-    bot = ClipBot(
+    bot = ClipperBot(
         DEFAULT_PREFIX,
         database=DATABASE,
-        owner_id=OWNER_ID
+        intents=intents,
     )
-    return bot.run(TOKEN)
+    return bot.run(DISCORD_TOKEN, log_handler=None)

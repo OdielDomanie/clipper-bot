@@ -1,23 +1,20 @@
-from config import (  # noqa: F401
-    DOWNLOAD_DIR,
-    MAX_DOWNLOAD_STORAGE,
-    CLIP_DIR,
-    MAX_CLIP_STORAGE,
-    DEF_CLIP_DURATION,
-    MAX_DURATION,
-    DATABASE,
-    YTDL_EXEC,
-    FFMPEG,
-    POLL_INTERVAL,
-    DEFAULT_PREFIX,
-    OWNER_ID,
-    TOKEN,
-    IP_ADDRESS,
-    PORT,
-    URL_PORT,
-    LOG_FILE,
-    LOG_LVL,
-    UVICORN_LOG_FILE,
-    UVICORN_LOG_LVL,
-    HOLODEX_TOKEN,
+import os
+import time
+
+import dotenv
+
+from config import *
+
+dotenv.load_dotenv()
+
+HOLODEX_TOKEN: str = os.getenv("HOLODEX_TOKEN")  # type: ignore
+assert HOLODEX_TOKEN
+
+
+# The time module does not specify the epoch.
+# Make sure that the epoch is standard.
+assert (
+    time.gmtime(0).tm_year == 1970
+    and time.gmtime(0).tm_yday == 1
+    and time.gmtime(0).tm_hour == 0
 )

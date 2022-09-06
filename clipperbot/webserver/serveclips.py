@@ -2,25 +2,49 @@ import urllib.parse
 import logging
 import random
 import sqlite3
+import os
 import os.path
 from starlette.applications import Starlette
 from starlette.routing import Mount, Route
+import dotenv
 from starlette.responses import RedirectResponse, FileResponse, Response
 from starlette.middleware import Middleware
 from starlette.middleware.base import BaseHTTPMiddleware
 import uvicorn
 import uvicorn.config
+
+from .ip_obf_log import IPObfuscate
 from .rangedstatic import Ranged_Static_Directory
 
 from .. import (
     CLIP_DIR,
-    IP_ADDRESS,
-    PORT,
-    UVICORN_LOG_FILE,
     UVICORN_LOG_LVL,
     DATABASE,
     URL_PORT,
 )
+
+
+handler = logging.StreamHandler()
+handler.setFormatter(
+    IPObfuscate('%(asctime)s:%(levelname)s:%(name)s: %(message)s')
+)
+
+uvi_logger = logging.getLogger("uvicorn")
+uvi_logger.setLevel(UVICORN_LOG_LVL)
+uvi_logger.addHandler(handler)
+
+webserver_logger = logging.getLogger("webserver")
+webserver_logger.setLevel(UVICORN_LOG_LVL)
+webserver_logger.addHandler(handler)
+
+
+dotenv.load_dotenv()
+
+CLIPWEBSERVER_IP = os.getenv("CLIPWEBSERVER_IP")
+assert CLIPWEBSERVER_IP
+CLIPWEBSERVER_PORT = os.getenv("CLIPWEBSERVER_PORT")
+assert CLIPWEBSERVER_PORT
+CLIPWEBSERVER_PORT = int(CLIPWEBSERVER_PORT)
 
 
 con = sqlite3.connect(DATABASE)
@@ -61,9 +85,9 @@ def get_link(clip_fname: str):
     alias = "/clips/clip_" + id_generator(6)
     insert_redirect(alias, urllib.parse.quote(file_path))
     if URL_PORT == 80:
-        return f"http://{IP_ADDRESS}{urllib.parse.quote(alias)}"
+        return f"http://{CLIPWEBSERVER_IP}{urllib.parse.quote(alias)}"
     else:
-        return f"http://{IP_ADDRESS}:{URL_PORT}{urllib.parse.quote(alias)}"
+        return f"http://{CLIPWEBSERVER_IP}:{URL_PORT}{urllib.parse.quote(alias)}"
 
 
 def favicon_response(request):
@@ -100,10 +124,6 @@ app = Starlette(routes=routes, middleware=middleware)
 def run():
     return uvicorn.run(
         app,
-        host=IP_ADDRESS, port=PORT,
-        log_level=UVICORN_LOG_LVL,
-        log_config=logging.basicConfig(
-            filename=UVICORN_LOG_FILE,
-            format='%(asctime)s:%(levelname)s:%(name)s: %(message)s'
-            )
+        host=CLIPWEBSERVER_IP, port=CLIPWEBSERVER_PORT,
+        log_config=None,
         )

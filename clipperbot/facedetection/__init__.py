@@ -1,11 +1,18 @@
+import logging
 import pathlib
+import time
+
 import cv2
 import numpy as np
 
+
+logger = logging.getLogger(__name__)
+
+
 # https://github.com/nagadomi/lbpcascade_animeface
 
-root_path = pathlib.Path(__file__).parents[2]
-CASCADE_FPATH = "facecascades/lbpcascade_animeface.xml"
+root_path = pathlib.Path(__file__).parents[0]
+CASCADE_FPATH = "lbpcascade_animeface.xml"
 CASCADE_FPATH = str(root_path.joinpath(CASCADE_FPATH))
 
 cascade = cv2.CascadeClassifier(CASCADE_FPATH)
@@ -21,21 +28,23 @@ def facedetect(png_data: bytes, faces_n=1, box_expand=1.5) -> bytes:
     png_array = np.frombuffer(png_data, "uint8")
     image = cv2.imdecode(png_array, cv2.IMREAD_COLOR)
 
+    t_start = time.perf_counter()
+
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     # gray = cv2.equalizeHist(gray)
 
     # faces is a list of (x, y, w, h)
-    faces: np.ndarray = cascade.detectMultiScale(
+    faces_arr: np.ndarray = cascade.detectMultiScale(
         gray,
         scaleFactor=1.1,
         minNeighbors=5,
         minSize=(72, 72)
     )
 
-    if len(faces) == 0:
+    if len(faces_arr) == 0:
         raise NoFaceException
 
-    faces: list = faces.tolist()
+    faces: list = faces_arr.tolist()
 
     # Only keep the largest n faces
     faces.sort(
@@ -84,13 +93,16 @@ def facedetect(png_data: bytes, faces_n=1, box_expand=1.5) -> bytes:
         result_image[new_h-h : new_h, current_x : current_x+w] = image[y : y+h, x : x+w]
         current_x += w
 
-    cv2.imwrite("tests/out.png", result_image)
+    t_end = time.perf_counter()
+    logger.info(f"Face detection and crop took {t_end-t_start:.3f}")
 
-    retval, png_data = cv2.imencode(".png", result_image)
+    retval, res_png_data = cv2.imencode(".png", result_image)
+
+
 
     assert retval
 
-    return png_data.tobytes()
+    return res_png_data.tobytes()
 
 
 if __name__ == "__main__":
