@@ -94,7 +94,8 @@ class _SendEnabledMsg:
                 RateLimit(self.RT_TIME, self.RT_REQS),
             )
             skipping_msg = rate_limit.skip(self.txtchn.send)
-            msg = await skipping_msg(f"🔴 Clipping enabled for: {stream.title} (<{stream.stream_url}>)")
+            # msg = await skipping_msg(f"🔴 Clipping enabled for: {stream.title} (<{stream.stream_url}>)")
+            msg = None
 
             # Update news
             rate_limit.skip_f(upd_news.send_news)(self.txtchn, g_id, self.bot)
@@ -333,42 +334,42 @@ class Admin(cm.Cog):
                 break
         return result
 
-    @cm.hybrid_command()
-    @ac.autocomplete(stream_name=stream_cm_autocomp)
-    @ac.describe(
-        stream_name="Channel name or url, or stream  URL."
-    )
-    @thinking
-    async def stream(self, ctx: cm.Context, stream_name: str):
-        "Enable clipping a single stream instead of registering a channel."
-        try:
-            san_url = san_stream_or_chn_url(stream_name)
-        except ValueError as e:
-            if ctx.interaction:
-                await ctx.interaction.delete_original_response()
-            await ctx.send(f"<{stream_name}> is not a valid url 🤨", ephemeral=True)
-            return
+    # @cm.hybrid_command()
+    # @ac.autocomplete(stream_name=stream_cm_autocomp)
+    # @ac.describe(
+    #     stream_name="Channel name or url, or stream  URL."
+    # )
+    # @thinking
+    # async def stream(self, ctx: cm.Context, stream_name: str):
+    #     "Enable clipping a single stream instead of registering a channel."
+    #     try:
+    #         san_url = san_stream_or_chn_url(stream_name)
+    #     except ValueError as e:
+    #         if ctx.interaction:
+    #             await ctx.interaction.delete_original_response()
+    #         await ctx.send(f"<{stream_name}> is not a valid url 🤨", ephemeral=True)
+    #         return
 
-        for ws in self.registers.get((ctx.channel.id,), ()):
-            if ws.active_stream and (ws.active_stream.stream_url == san_url or ws.target == san_url):
-                if ctx.interaction:
-                    await ctx.interaction.delete_original_response()
-                await ctx.send(f"<{san_url}> is already enabled on this text channel 🤨", ephemeral=True)
-                return
+    #     for ws in self.registers.get((ctx.channel.id,), ()):
+    #         if ws.active_stream and (ws.active_stream.stream_url == san_url or ws.target == san_url):
+    #             if ctx.interaction:
+    #                 await ctx.interaction.delete_original_response()
+    #             await ctx.send(f"<{san_url}> is already enabled on this text channel 🤨", ephemeral=True)
+    #             return
 
-        hook = _AddToPsd("captured_streams", (ctx.channel.id,))
-        ws: WatcherSharer = create_watch_sharer(san_url, stream_hooks=(hook,))
-        self.onetime_streams.setdefault(ctx.channel.id, set()).add(ws)
-        # Doesn't survive a restart. An okay concession for simplicity.
-        try:
-            ws.start()
-            waiting_for_msg = await ctx.send(f"👀 Waiting for <{san_url}>")
-            await ws.stream_on.wait()
-            await waiting_for_msg.edit(content=f"🔴 Clipping enabled for <{san_url}>")
-            await ws.stream_off.wait()
-        finally:
-            self.onetime_streams[ctx.channel.id].remove(ws)
-            ws.stop()
+    #     hook = _AddToPsd("captured_streams", (ctx.channel.id,))
+    #     ws: WatcherSharer = create_watch_sharer(san_url, stream_hooks=(hook,))
+    #     self.onetime_streams.setdefault(ctx.channel.id, set()).add(ws)
+    #     # Doesn't survive a restart. An okay concession for simplicity.
+    #     try:
+    #         ws.start()
+    #         waiting_for_msg = await ctx.send(f"👀 Waiting for <{san_url}>")
+    #         await ws.stream_on.wait()
+    #         await waiting_for_msg.edit(content=f"🔴 Clipping enabled for <{san_url}>")
+    #         await ws.stream_off.wait()
+    #     finally:
+    #         self.onetime_streams[ctx.channel.id].remove(ws)
+    #         ws.stop()
 
     def get_streams(self, txt_chn: "MessageableChannel") -> Collection[tuple[float, "Stream"]]:
         "Return streams that can be clipped in this txt channel that already are in the cache."
@@ -583,7 +584,7 @@ class Admin(cm.Cog):
         channel="Text channel to get the clips from.",
         stream="Stream url of the clips.",
     )
-    async def repost_clips(self, ctx: cm.Context, channel: dc.TextChannel, stream: Optional[str]):
+    async def post_clips(self, ctx: cm.Context, channel: dc.TextChannel, stream: Optional[str]):
         "Post the clips already made in a channel in this text channel."
         user_cog = cast("Clipping", self.bot.get_cog("Clipping"))
         chsn_strm = None

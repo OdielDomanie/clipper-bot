@@ -34,7 +34,7 @@ intents = dc.Intents(
             guilds=True,
             guild_messages=True,
             guild_reactions=True,
-            message_content=True,  # Only needed for classic commands
+            # message_content=True,  # Only needed for classic commands
         )
 
 def run():

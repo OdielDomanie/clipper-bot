@@ -30,15 +30,8 @@ logger = logging.getLogger(__name__)
 def send_news(chn: "PartialMessageableChannel", guild_id: int, bot: "ClipperBot"):
     if bot.upd_news_unsent.get(guild_id):
         aio.create_task(chn.send(
-"""**Version 2.0 Update**
-**New stuff:**
-* Optional Slash Commands
-* Clip past VODs
-* `register` Twitch channels
-* Interactive editing with `/edit`
-* No need to add the dash (`-`) at the end anymore
-
-View the updated usage guide and all of the new features at <https://odieldomanie.github.io/callipper/>
+"""**Update News**
+Bot's back online! but with limited functionality.
 """
         ))
         try:

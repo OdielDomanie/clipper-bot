@@ -54,9 +54,9 @@ def fetch_yt_metadata(
             or "is not currently live" in e.args[0]
         ):
             logger.debug(e)
-        elif "HTTP Error 429" in e.args[0]:
-            logger.critical(f"Got \"{e}\", for {url}.")
-            raise RateLimited
+        # elif "HTTP Error 429" in e.args[0]:
+        #     logger.critical(f"Got \"{e}\", for {url}.")
+        #     raise RateLimited
         else:
             if url not in repeated_errors:
                 repeated_errors[url] = [time.monotonic(), set()]

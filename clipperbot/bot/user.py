@@ -375,7 +375,26 @@ class Clipping(cm.Cog):
         if ts is not None:
             clip_f = functools.partial(clipped_stream.clip_from_start, ts)
         elif ago_t is not None:
-            clip_f = functools.partial(clipped_stream.clip_from_end, ago_t)
+            # clip_f = functools.partial(clipped_stream.clip_from_end, ago_t)
+
+            ts =  (clipped_stream.end_time or clipped_stream.time()) - ago_t - clipped_stream.start_time
+
+            await ctx.reply(f"Saved clip timestamp {int(ts)}. Post it when stream ends with `/post_clips`")
+
+            sent_clip = SentClip(
+                    None,
+                    duration=duration_t,
+                    ago=ago_t,
+                    from_start=ts,
+                    channel_id=ctx.channel.id,
+                    msg_id=msg.id,
+                    audio_only=audio_only,
+                    user_id=ctx.author.id,
+                    stream_uid=clipped_stream.unique_id,
+                )
+            self.sent_clips[msg.id] = sent_clip
+            return
+
         else:
             raise TypeError("Both ts and ago_t can't be None.")
         try:
@@ -403,7 +422,7 @@ class Clipping(cm.Cog):
                 )
 
             # If clip size is barely above the file size limit, cut a little and try again.
-            if 0 < clip.size - ctx.guild.filesize_limit <= 800_000:
+            if clip and 0 < clip.size - ctx.guild.filesize_limit <= 800_000:
                 new_clip = await clip_f(duration_t - 1)
                 if new_clip.size <= ctx.guild.filesize_limit:
                     delete_clip_file(clip)
@@ -436,7 +455,7 @@ class Clipping(cm.Cog):
     ):
         assert ctx.guild
 
-        if clip.size <= ctx.guild.filesize_limit:
+        if clips is None or clip.size <= ctx.guild.filesize_limit:
             # Send as attachment
             try:
                 file_name = os.path.basename(clip.fpath)
@@ -474,7 +493,7 @@ class Clipping(cm.Cog):
                 return
 
         # Send as link
-        if self.admin_cog.get_link_perm(ctx.guild.id):
+        if False and self.admin_cog.get_link_perm(ctx.guild.id):
             logger.info(
                 f"Linking big {clip.fpath} ({clip.size//(1024*1024)}MB)"
                 f" at {(ctx.guild.name, ctx.channel)}")
@@ -655,27 +674,27 @@ class Clipping(cm.Cog):
                 screenshot=screenshot,
             )
 
-    @cm.hybrid_command()
-    async def ss(self, ctx: cm.Context):
-        "Screenshot! (with anime face detection)"
+    # @cm.hybrid_command()
+    # async def ss(self, ctx: cm.Context):
+    #     "Screenshot! (with anime face detection)"
 
-        streams= self.admin_cog.get_streams(ctx.channel)
+    #     streams= self.admin_cog.get_streams(ctx.channel)
 
-        try:
-            p, clipped_stream = max(
-                streams,
-                key=lambda ps: (ps[1].active, ps[0], ps[1].end_time or ps[1].start_time)
-            )
-        except ValueError:
-            await ctx.send(
-                "No stream was captured in this channel. Use `register` or `stream` first.",
-                ephemeral=True,
-            )
-            return
+    #     try:
+    #         p, clipped_stream = max(
+    #             streams,
+    #             key=lambda ps: (ps[1].active, ps[0], ps[1].end_time or ps[1].start_time)
+    #         )
+    #     except ValueError:
+    #         await ctx.send(
+    #             "No stream was captured in this channel. Use `register` or `stream` first.",
+    #             ephemeral=True,
+    #         )
+    #         return
 
-        await self.create_n_send_clip(
-            ctx, clipped_stream, None, 2, 1, False, screenshot=True
-        )
+    #     await self.create_n_send_clip(
+    #         ctx, clipped_stream, None, 2, 1, False, screenshot=True
+    #     )
 
 
 class EditWindow(dc.ui.View):

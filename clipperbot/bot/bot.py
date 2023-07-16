@@ -88,7 +88,7 @@ class ClipperBot(cm.Bot):
             logger.critical(
                 f"Joined not whitelisted guild {guild.name}. Leaving."
             )
-            await guild.leave()
+            # await guild.leave()
         else:
             logger.info(f"In guild: {guild.name}")
 
